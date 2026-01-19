@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLab Media Player Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .connection {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .connection input {
+            padding: 8px 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 14px;
+        }
+        
+        .connection input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.connected {
+            background: #44ff44;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 30px;
+        }
+        
+        .panel {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .panel h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .playlist {
+            grid-column: 1 / -1;
+        }
+        
+        .playlist-items {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .playlist-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .playlist-item-info {
+            flex: 1;
+        }
+        
+        .playlist-item-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .playlist-item-details {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .playlist-item-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-play {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-small:hover {
+            transform: scale(1.05);
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Media Player Control</h1>
+            <p>Control your Raspberry Pi media player from the web</p>
+            <div class="connection">
+                <input type="text" id="piIP" placeholder="Raspberry Pi IP" value="192.168.1.100">
+                <input type="text" id="piPort" placeholder="Port" value="53000">
+                <div class="status">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Not Connected</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- Quick Controls -->
+            <div class="panel">
+                <h2>⚡ Quick Controls</h2>
+                
+                <div class="form-group">
+                    <label>Media File</label>
+                    <input type="text" id="quickFile" placeholder="e.g., video.mp4 or image.jpg">
+                </div>
+                
+                <div class="form-group">
+                    <label>Duration (seconds, 0 = default)</label>
+                    <input type="number" id="quickDuration" value="0" min="0" step="0.5">
+                </div>
+                
+                <div class="form-group">
+                    <label>Loop Video</label>
+                    <select id="quickLoop">
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="playQuick()">▶️ Play</button>
+                
+                <div class="control-grid">
+                    <button class="btn btn-secondary" onclick="sendCommand('/stop')">⏹️ Stop</button>
+                    <button class="btn btn-secondary" onclick="sendCommand('/clear')">⬛ Clear</button>
+                </div>
+            </div>
+            
+            <!-- Add to Playlist -->
+            <div class="panel">
+                <h2>➕ Add to Playlist</h2>
+                
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="playlistType">
+                        <option value="image">Image</option>
+                        <option value="video">Video</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>File Name</label>
+                    <input type="text" id="playlistFile" placeholder="e.g., slide1.jpg">
+                </div>
+                
+                <div class="form-group">
+                    <label>Duration (seconds)</label>
+                    <input type="number" id="playlistDuration" value="5" min="0" step="0.5">
+                </div>
+                
+                <div class="form-group" id="loopGroup">
+                    <label>Loop</label>
+                    <select id="playlistLoop">
+                        <option value="0">No</option>
+                        <option value="1">Yes</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="addToPlaylist()">➕ Add to Playlist</button>
+            </div>
+            
+            <!-- Playlist -->
+            <div class="panel playlist">
+                <h2>📋 Playlist</h2>
+                
+                <div class="control-grid">
+                    <button class="btn btn-primary" onclick="playPlaylist()">▶️ Play All</button>
+                    <button class="btn btn-danger" onclick="clearPlaylist()">🗑️ Clear All</button>
+                </div>
+                
+                <div class="playlist-items" id="playlistItems">
+                    <p style="text-align: center; color: #999; padding: 40px;">No items in playlist</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let playlist = [];
+        let isPlaying = false;
+        
+        // Update loop visibility based on type
+        document.getElementById('playlistType').addEventListener('change', function() {
+            document.getElementById('loopGroup').style.display = 
+                this.value === 'video' ? 'block' : 'none';
+        });
+        
+        // Send OSC command via backend
+        async function sendCommand(command, ...args) {
+            const ip = document.getElementById('piIP').value;
+            const port = document.getElementById('piPort').value;
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ip: ip,
+                        port: parseInt(port),
+                        command: command,
+                        args: args
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log(`✓ Sent: ${command} ${args.join(' ')}`);
+                    updateStatus(true);
+                    return true;
+                } else {
+                    console.error('Failed:', data.error);
+                    alert('Failed to send command: ' + data.error);
+                    updateStatus(false);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('Could not connect to backend server. Is it running on localhost:5000?');
+                updateStatus(false);
+                return false;
+            }
+        }
+        
+        // Play quick control
+        function playQuick() {
+            const file = document.getElementById('quickFile').value;
+            const duration = parseFloat(document.getElementById('quickDuration').value);
+            const loop = document.getElementById('quickLoop').value;
+            
+            if (!file) {
+                alert('Please enter a file name');
+                return;
+            }
+            
+            // Determine if it's an image or video based on extension
+            const ext = file.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
+            
+            if (isImage) {
+                sendCommand('/image', duration, file);
+            } else {
+                sendCommand('/video', duration, loop, file);
+            }
+        }
+        
+        // Add to playlist
+        function addToPlaylist() {
+            const type = document.getElementById('playlistType').value;
+            const file = document.getElementById('playlistFile').value;
+            const duration = parseFloat(document.getElementById('playlistDuration').value);
+            const loop = document.getElementById('playlistLoop').value;
+            
+            if (!file) {
+                alert('Please enter a file name');
+                return;
+            }
+            
+            const item = {
+                type,
+                file,
+                duration,
+                loop: type === 'video' ? loop : '0'
+            };
+            
+            playlist.push(item);
+            renderPlaylist();
+            
+            // Clear form
+            document.getElementById('playlistFile').value = '';
+        }
+        
+        // Render playlist
+        function renderPlaylist() {
+            const container = document.getElementById('playlistItems');
+            
+            if (playlist.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No items in playlist</p>';
+                return;
+            }
+            
+            container.innerHTML = playlist.map((item, index) => `
+                <div class="playlist-item">
+                    <div class="playlist-item-info">
+                        <div class="playlist-item-name">
+                            ${index + 1}. ${item.file}
+                        </div>
+                        <div class="playlist-item-details">
+                            ${item.type.toUpperCase()} • ${item.duration}s
+                            ${item.type === 'video' && item.loop === '1' ? ' • LOOP' : ''}
+                        </div>
+                    </div>
+                    <div class="playlist-item-actions">
+                        <button class="btn-small btn-play" onclick="playItem(${index})">▶️</button>
+                        <button class="btn-small btn-remove" onclick="removeItem(${index})">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Play single playlist item
+        function playItem(index) {
+            const item = playlist[index];
+            
+            if (item.type === 'image') {
+                sendCommand('/image', item.duration, item.file);
+            } else {
+                sendCommand('/video', item.duration, item.loop, item.file);
+            }
+        }
+        
+        // Remove playlist item
+        function removeItem(index) {
+            playlist.splice(index, 1);
+            renderPlaylist();
+        }
+        
+        // Clear playlist
+        function clearPlaylist() {
+            if (confirm('Clear entire playlist?')) {
+                playlist = [];
+                renderPlaylist();
+            }
+        }
+        
+        // Play entire playlist
+        async function playPlaylist() {
+            if (playlist.length === 0) {
+                alert('Playlist is empty');
+                return;
+            }
+            
+            if (isPlaying) {
+                alert('Playlist is already playing');
+                return;
+            }
+            
+            isPlaying = true;
+            
+            for (let i = 0; i < playlist.length; i++) {
+                const item = playlist[i];
+                
+                console.log(`Playing item ${i + 1}/${playlist.length}: ${item.file}`);
+                
+                if (item.type === 'image') {
+                    await sendCommand('/image', item.duration, item.file);
+                } else {
+                    await sendCommand('/video', item.duration, item.loop, item.file);
+                }
+                
+                // Wait for duration before next item (unless it's looping)
+                if (item.loop === '0' && item.duration > 0) {
+                    await sleep(item.duration * 1000);
+                }
+            }
+            
+            isPlaying = false;
+            console.log('Playlist complete');
+        }
+        
+        // Helper function
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // Update connection status
+        function updateStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (connected) {
+                dot.classList.add('connected');
+                text.textContent = 'Connected';
+            } else {
+                dot.classList.remove('connected');
+                text.textContent = 'Not Connected';
+            }
+        }
+        
+        // Load saved settings
+        window.addEventListener('load', function() {
+            const savedIP = localStorage.getItem('piIP');
+            const savedPort = localStorage.getItem('piPort');
+            
+            if (savedIP) document.getElementById('piIP').value = savedIP;
+            if (savedPort) document.getElementById('piPort').value = savedPort;
+        });
+        
+        // Save settings on change
+        document.getElementById('piIP').addEventListener('change', function() {
+            localStorage.setItem('piIP', this.value);
+        });
+        
+        document.getElementById('piPort').addEventListener('change', function() {
+            localStorage.setItem('piPort', this.value);
+        });
+    </script>
+</body>
+</html>
