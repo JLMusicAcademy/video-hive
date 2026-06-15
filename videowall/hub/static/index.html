@@ -34,6 +34,15 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 4px; right: 4px; background: #6b7280; }
   .dot.online { background: #16a34a; } .dot.offline { background: #b91c1c; }
   #preview { width: 100%; margin-top: 12px; border-radius: 8px; display: none; border: 1px solid #374151; }
+  .tvwrap { margin-top: 12px; overflow-x: auto; background: #0b1220; border: 1px solid #374151; border-radius: 8px; padding: 12px; }
+  .tvgrid { display: grid; gap: 10px; min-width: min-content; }
+  .tv { display: flex; flex-direction: column; align-items: center; }
+  .tv-screen { width: 100%; aspect-ratio: 16/9; background: #000; border: 4px solid #0f172a; border-radius: 6px;
+               box-shadow: 0 0 0 2px #1e293b, 0 6px 14px rgba(0,0,0,0.5); overflow: hidden; display: flex; }
+  .tv.portrait .tv-screen { aspect-ratio: 9/16; }
+  .tv-screen img { width: 100%; height: 100%; object-fit: fill; display: block; }
+  .tv-label { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .tv-stand { width: 22%; height: 5px; background: #1e293b; border-radius: 0 0 3px 3px; }
   .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #374151; margin-left: 4px; }
   .target { background: #0b1220; border: 1px solid #374151; border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 13px; }
   .target b { color: #a5b4fc; }
@@ -105,7 +114,7 @@
 
       <div id="simpleBuild">
         <label>Master file (image or video)</label>
-        <input type="file" id="buildFile" accept="image/*,video/*">
+        <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
       </div>
 
       <div id="composeEditor" style="display:none">
@@ -117,11 +126,12 @@
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-secondary" onclick="previewBuild()">👁 Preview</button>
+        <button class="btn btn-secondary" onclick="updatePreview()">👁 Refresh preview</button>
         <button class="btn btn-primary" onclick="buildCue()">⤓ Build + Distribute</button>
       </div>
       <div id="buildStatus" class="sub" style="margin-top:8px"></div>
-      <img id="preview">
+      <label style="margin-top:12px">Live preview — each TV shows what it will display</label>
+      <div class="tvwrap"><div id="tvPreview" class="sub">Pick an image to see the wall build.</div></div>
     </div>
 
     <!-- CONFIG TAB -->
@@ -174,7 +184,11 @@ function renderGrid(){
   }
   g.innerHTML=h;
 }
-function selectPanel(r,c){ selected=[r,c]; renderGrid(); }
+function selectPanel(r,c){
+  selected=[r,c]; renderGrid();
+  const m=document.getElementById('buildMode');
+  if(m && m.value==='solo') updatePreview();
+}
 
 async function setLayout(l){
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l})});
@@ -199,12 +213,14 @@ function onModeChange(){
   document.getElementById('composeEditor').style.display = compose ? 'block' : 'none';
   document.getElementById('simpleBuild').style.display = compose ? 'none' : 'block';
   if(compose) renderComposeGrid();
+  updatePreview();
 }
 function onComposeFiles(){
   composeImages = Array.from(document.getElementById('composeFiles').files);
   document.getElementById('composeTray').innerHTML =
     composeImages.map((f,i)=>`<span class="pill">Image ${i+1}: ${f.name}</span>`).join(' ');
   renderComposeGrid();
+  updatePreview();
 }
 function renderComposeGrid(){
   const el=document.getElementById('composeGrid');
@@ -221,7 +237,7 @@ function renderComposeGrid(){
       <select id="cs-${key}" style="font-size:11px;padding:2px" onchange="cellChange('${key}')">
         <option value="black">Black</option>${opts}
       </select>
-      <select id="cr-${key}" style="font-size:11px;padding:2px">
+      <select id="cr-${key}" style="font-size:11px;padding:2px" onchange="updatePreview()">
         <option value="full">Full</option><option value="slice">Slice</option>
       </select></div>`;
   }
@@ -230,6 +246,7 @@ function renderComposeGrid(){
 function cellChange(key){
   const src=document.getElementById('cs-'+key).value;
   document.getElementById('cr-'+key).style.visibility = (src==='black') ? 'hidden' : 'visible';
+  updatePreview();
 }
 function composeAssign(){
   const a=[];
@@ -266,17 +283,38 @@ function buildForm(){
   }
   return {fd,file:f};
 }
-async function previewBuild(){
-  if(document.getElementById('buildMode').value==='compose'){
-    const fd=composeForm(); if(!fd) return;
-    const r=await fetch('/api/preview_compose',{method:'POST',body:fd});
-    const img=document.getElementById('preview'); img.src=URL.createObjectURL(await r.blob()); img.style.display='block';
-    return;
+function renderTVGrid(data){
+  const el=document.getElementById('tvPreview');
+  const portrait=data.orientation==='portrait';
+  let cells='';
+  for(let r=0;r<data.rows;r++) for(let c=0;c<data.cols;c++){
+    const key=`${r},${c}`, url=data.tiles[key];
+    cells+=`<div class="tv ${portrait?'portrait':''}">
+      <div class="tv-screen">${url?`<img src="${url}">`:''}</div>
+      <div class="tv-stand"></div>
+      <div class="tv-label">TV ${key}</div></div>`;
   }
-  const b=buildForm(); if(!b) return;
-  if(b.file.type.startsWith('video')){ alert('Preview is for images; build video directly.'); return; }
-  const r=await fetch('/api/preview',{method:'POST',body:b.fd});
-  const img=document.getElementById('preview'); img.src=URL.createObjectURL(await r.blob()); img.style.display='block';
+  el.innerHTML=`<div class="tvgrid" style="grid-template-columns:repeat(${data.cols},minmax(120px,1fr))">${cells}</div>`;
+}
+
+async function updatePreview(){
+  const mode=document.getElementById('buildMode').value;
+  const el=document.getElementById('tvPreview');
+  if(mode==='compose'){
+    if(!composeImages.length){ el.innerHTML='<span class="sub">Add source images and assign panels to preview.</span>'; return; }
+    const fd=composeForm(); if(!fd) return;
+    const r=await (await fetch('/api/tiles_compose',{method:'POST',body:fd})).json();
+    renderTVGrid(r); return;
+  }
+  const f=document.getElementById('buildFile').files[0];
+  if(!f){ el.innerHTML='<span class="sub">Pick an image to see the wall build.</span>'; return; }
+  if(f.type.startsWith('video')){ el.innerHTML='<span class="sub">Live preview is for images. Video tiles are generated on Build.</span>'; return; }
+  if(mode==='solo' && !selected){ el.innerHTML='<span class="sub">Click a panel in the Wall grid to target for solo.</span>'; return; }
+  const fd=new FormData();
+  fd.append('file',f); fd.append('mode',mode);
+  if(mode==='solo') fd.append('target',selected.join(','));
+  const r=await (await fetch('/api/tiles',{method:'POST',body:fd})).json();
+  renderTVGrid(r);
 }
 async function buildCue(){
   if(document.getElementById('buildMode').value==='compose'){

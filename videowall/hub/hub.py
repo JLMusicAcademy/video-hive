@@ -21,6 +21,7 @@ Run from this directory:
 """
 
 import argparse
+import base64
 import io
 import json
 import os
@@ -313,6 +314,44 @@ def api_preview():
     mockup.save(buf, format="PNG")
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
+
+
+def tiles_to_dataurls(imgs, max_px=360):
+    """Turn {(r,c): PIL.Image} into {"r,c": data-URL} thumbnails for live preview."""
+    out = {}
+    for (r, c), img in imgs.items():
+        thumb = img.copy()
+        thumb.thumbnail((max_px, max_px))
+        buf = io.BytesIO()
+        thumb.save(buf, format="PNG")
+        out[f"{r},{c}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return out
+
+
+@app.route("/api/tiles", methods=["POST"])
+def api_tiles():
+    """Per-panel preview tiles for span/mirror/solo (live show-builder view)."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file"}), 400
+    mode = request.form.get("mode", "span")
+    target = parse_target(request.form.get("target"))
+    src = Image.open(request.files["file"].stream)
+    staged, (tiles, cw, ch, panel, layout) = slice_for_mode(src, mode, target)
+    imgs = {k: Image.open(io.BytesIO(p)) for k, (_, p) in staged.items()}
+    for t in tiles:                       # complete the grid (solo leaves gaps)
+        imgs.setdefault((t.row, t.col), black_tile(panel))
+    return jsonify({"tiles": tiles_to_dataurls(imgs), "rows": layout["rows"],
+                    "cols": layout["cols"], "orientation": layout["orientation"]})
+
+
+@app.route("/api/tiles_compose", methods=["POST"])
+def api_tiles_compose():
+    """Per-panel preview tiles for compose mode."""
+    sources = read_sources()
+    assignments = json.loads(request.form.get("assign", "[]"))
+    imgs, (tiles, cw, ch, panel, layout) = compose_images(sources, assignments)
+    return jsonify({"tiles": tiles_to_dataurls(imgs), "rows": layout["rows"],
+                    "cols": layout["cols"], "orientation": layout["orientation"]})
 
 
 @app.route("/api/cue/build", methods=["POST"])
