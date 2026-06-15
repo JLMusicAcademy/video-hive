@@ -1,28 +1,43 @@
-# Video Wall (hub + nodes)
+# Video Hive (hub + nodes)
 
-A networked video wall: a **control hub** slices/orchestrates, and a thin
-**display node** (one Raspberry Pi per TV) shows its assigned region. Send a
-single image to one display, mirror it across the grid, or break it into pieces
-so the whole wall shows one continuous picture — plus pre-processed,
-synchronized video.
+A networked video wall. A **control hub** does all the image/video editing —
+slicing and bezel math — and a thin **display node** (one Raspberry Pi per TV)
+shows its assigned piece. You author one master image/video at the full wall
+format; the hub splices it and pushes the right piece to the right TV.
 
-This is the new direction for the project. It reuses the original QLab player's
-proven "persistent fullscreen MPV window" technique as the node, and grows the
-old Flask backend into the hub.
+It follows the original QLab philosophy: **distribute heavy media once during
+pre-production, then fire lightweight cues at show time.**
 
 ```
-            ┌──────────────────────────────┐
-            │            HUB               │  Raspberry Pi 5 is sufficient
-            │  layouts · image slicer ·    │  for images + pre-tiled video
-            │  bezel comp · video tiler ·  │
-            │  sync scheduler · web UI     │
-            └───────────────┬──────────────┘
-                            │  wired Gigabit LAN
-        ┌──────────┬────────┼────────┬──────────┐
-        ▼          ▼        ▼        ▼          ▼
-     Pi (0,0)   Pi (0,1)  Pi(1,0)  Pi(1,1) …  Pi (r,c)
-     one TV     one TV    one TV   one TV     one TV
+   BUILD (pre-production)                 FIRE (show time)
+   author 1 master at wall format         hub -> every TV: "show cue 7"
+        │ hub slices + bezel math              (tiny command, no media)
+        ▼ push slices to each TV               ▼ all panels flip in unison
+   ┌───────────────────────────────────────────────────────────┐
+   │  HUB (Raspberry Pi 5 is sufficient for images + pre-tiled  │
+   │  video) — layouts · slicer · bezel comp · video tiler ·    │
+   │  cue library · sync scheduler · web UI                     │
+   └───────────────┬───────────────────────────────────────────┘
+                   │ wired Gigabit LAN
+        ┌──────────┼──────────┬──────────┐
+        ▼          ▼          ▼          ▼
+     Pi (0,0)   Pi (0,1)   Pi (1,0)  … Pi (r,c)   each: persistent MPV +
+     cue library on local disk (survives reboot)  fire-by-ID
 ```
+
+## The two phases
+
+**Build (pre-production).** Author one master at the format the hub tells you
+(see *Authoring target* below). Give it a cue name, pick a mode, and **Build +
+Distribute**. The hub slices the master (with bezel compensation), and pushes
+each panel's slice to its node, filed under the cue ID. This is the only time
+media crosses the LAN. The node stores cues on disk and reloads them on boot, so
+a built show is ready immediately after a restart.
+
+**Fire (show time).** Firing a cue sends every TV only a tiny "show cue N"
+command — no media moves, so the flip is near-instant. The command carries a
+single wall-clock `show_at` timestamp so all panels change in unison (see
+*Synchronized flips*).
 
 ## Supported layouts
 
@@ -31,103 +46,107 @@ old Flask backend into the hub.
 | Landscape (16:9) | `2x2`, `4x4` | 1920×1080, rotation 0 |
 | Portrait (9:16)  | `1x1`, `1x2`, `1x3`, `1x4`, `1x5` | 1080×1920, rotation 90 |
 
-Add your own in `hub/geometry.py` (`LAYOUTS`). Panel physical dimensions and
-node IP/port mapping live in `config/wall.example.json`.
+`1xN` is a horizontal **row** of N portrait panels (wide panorama). Add layouts
+in `hub/geometry.py` (`LAYOUTS`).
 
-## How simultaneous display is guaranteed (the latency answer)
+## Authoring target (so you never do the math)
 
-Panels must flip *together* or the picture looks disjointed. The hub never says
-"show now". It uses **stage-then-commit**:
+Pick a grid and the hub shows the exact size to author your master at, e.g. for
+`1x5` portrait the wall is ≈ **45:16** (five 9:16 panels in a row) — *wide*, not
+9:16. The UI reports two targets:
 
-1. **Stage** — push every tile to its node and wait until all report ready.
-   This absorbs the variable, per-node network transfer time up front.
-2. **Commit** — broadcast one `show_at` wall-clock timestamp a short lead time
-   in the future (default 0.30 s for images). Each node schedules the actual
-   flip against *its own* clock, so the visible change lands on the same instant
-   on every panel regardless of network jitter.
+- **physical_canvas** — author here for full bezel compensation; the hub treats
+  the master as the continuous surface (bezels included) and crops each panel's
+  active window out.
+- **active_mosaic** — the simpler 1:1 target; seams show the usual
+  uncompensated offset.
 
-The only realtime operation at flip time is a local `loadfile` of an
-already-transferred file (sub-millisecond, consistent). **Requirement:** keep
-node clocks tight with NTP on the LAN (PTP for the tightest sync). The same
-mechanism drives synchronized video playback.
+## Image modes
+
+- **span** — one master sliced across the whole grid (the video-wall look).
+- **mirror** — the same whole image on every panel.
+- **solo** — one image to a single selected panel (individually addressable).
+
+## Synchronized flips (the latency answer)
+
+A fired cue carries one `show_at` wall-clock timestamp a short lead in the
+future. Each node schedules the flip against **its own** clock, so every panel
+changes on the same instant regardless of network jitter. Because the media is
+already local, the only realtime work is a local `loadfile` — sub-millisecond.
+**Requirement:** keep node clocks tight with NTP on the LAN (PTP for the
+tightest sync), and use wired Gigabit.
 
 ## Bezel compensation & rotation
 
 - **Bezel comp** is automatic: the hub builds the wall canvas including the dead
-  space behind the bezels, then crops only each panel's *active* area, dropping
-  the strips hidden by the seams so the image stays continuous. Configure each
+  space behind the bezels, then crops only each panel's *active* area. Set each
   panel's `active_*` (lit glass) and `outer_*` (chassis incl. bezel) in the
   config.
-- **Rotation** for vertically-mounted TVs is applied at the node via MPV
-  `video-rotate`, so the hub always works in wall-space orientation.
-
-## Image modes
-
-- **span** — one image sliced across the whole grid (the video-wall look).
-- **mirror** — the same whole image on every panel.
-- **solo** — one image to a single selected panel (individually addressable).
+- **Rotation** for portrait-mounted TVs is applied at the node (MPV
+  `video-rotate`), so the hub always works in wall-space orientation.
 
 ## Run it
 
-Install deps (hub needs `ffmpeg`/`ffprobe` for video; nodes need `mpv`):
+Hub needs `ffmpeg`/`ffprobe` (for video tiling); nodes need `mpv`.
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt        # Pillow, Flask, flask-cors, requests
 ```
 
 **Hub:**
 
 ```bash
 cd hub
-python hub.py --config ../config/wall.example.json
-# open http://localhost:5000
+python hub.py --config ../config/wall.example.json     # http://localhost:5000
 ```
 
 **Each display node (on its Pi):**
 
 ```bash
 cd node
-python node.py --id tv00 --port 8001 --rotation 0     # landscape
-python node.py --id tv00 --port 8001 --rotation 90    # portrait mount
+python node.py --id tv00 --port 8001 --rotation 0      # landscape
+python node.py --id tv04 --port 8005 --rotation 90     # portrait mount
 ```
 
-Map each node's host/port to its grid coordinate in the config `nodes` block
-(`"row,col": {host, port}`).
+Map each grid cell to a TV's host/port in the **Grid Config** tab (or the config
+`nodes` block, `"row,col": {host, port}`). The **Identify** button flashes a
+cell's label on that TV so you can confirm placement.
 
 ## Test on a single machine (no Pis, no display)
 
-Nodes have a `--headless` mode: they accept all commands and write staged tiles
-to `node/received/` so you can verify slicing and orchestration anywhere.
+Nodes have `--headless`: they accept everything and keep files on disk, so you
+can verify slicing, distribution, persistence and orchestration anywhere.
 
 ```bash
-# 4 headless nodes for a 2x2 wall
 cd node
-for p in 8001 8002 8003 8004; do python node.py --id n$p --port $p --headless & done
-
+for p in 8001 8002 8003 8004; do
+  python node.py --id n$p --port $p --headless --media-dir /tmp/n$p & done
 cd ../hub && python hub.py --config ../config/wall.example.json &
-# open http://localhost:5000, pick 2x2, drop an image, Preview, Send
+# open http://localhost:5000 -> pick 2x2 -> Build tab: drop an image, Build
+# -> Show tab: Fire the cue
 ```
 
-The **Preview** button renders a mockup of the whole wall *including* bezel gaps
-so you can confirm the picture is continuous before sending.
+The **Preview** button (Build tab) renders a mockup of the whole wall
+*including* bezel gaps, so you can confirm continuity before distributing.
 
 ## Pre-processed video
 
-1. **Prepare** — upload a video; the hub tiles it with ffmpeg (`crop`) into one
-   silent file per panel and distributes them to the nodes. Runs offline; poll
-   progress in the UI.
-2. **Play** — the hub broadcasts a synchronized `show_at` and every node starts
-   its tile on the same frame.
-
-Audio is intentionally stripped from tiles — route sound separately (one node,
-or a dedicated audio output) to avoid 16 copies.
+In the Build tab, choose a video master and **Build + Distribute**. The hub
+tiles it with ffmpeg (`crop`) into one silent file per panel and distributes
+them under a cue ID (runs offline; progress shown). Fire it like any cue — every
+node starts its tile on the same frame. Audio is stripped from tiles; route
+sound separately (one node or a dedicated output) to avoid duplicate playback.
 
 ## Status / scope
 
-Working prototype for **images + pre-processed video** on a **Pi-class hub**.
+Working prototype: **images + pre-processed video**, build-once / fire-by-cue,
+on a Pi-class hub. Verified end-to-end (slicing, bezel comp, distribution,
+disk persistence across reboot, synchronized fire) with headless nodes.
+
 Not yet built (candidate next steps):
 
-- Frame-tight sync hardening (PTP, drift correction, per-node offset calibration).
-- Live/on-the-fly video tiling (would want an N100/NUC-class hub).
-- Audio routing, content scheduling/playlists, OSC bridge for QLab control,
-  persisted wall presets, per-node health/auto-recovery.
+- **QLab bridge** — OSC listener so a QLab Network cue fires a wall cue.
+- Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
+- Pre-decode on stage; audio routing; show/cue ordering & playlists.
+- Separate runtime config from the shipped example so running the hub doesn't
+  mutate `wall.example.json`.

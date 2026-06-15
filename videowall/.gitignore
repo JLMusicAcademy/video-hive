@@ -3,4 +3,5 @@ __pycache__/
 _work/
 received/
 media_*/
+cue_store/
 *.log

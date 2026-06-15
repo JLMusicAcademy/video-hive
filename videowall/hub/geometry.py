@@ -17,6 +17,7 @@ picture stays continuous across the seams.
 """
 
 from dataclasses import dataclass
+from math import gcd
 
 
 @dataclass
@@ -96,6 +97,31 @@ def build_tiles(rows, cols, panel: PanelSpec):
                 rotation=panel.rotation,
             ))
     return tiles, canvas_w, canvas_h
+
+
+def _aspect(w, h):
+    g = gcd(int(w), int(h)) or 1
+    return f"{int(w)//g}:{int(h)//g}"
+
+
+def authoring_target(rows, cols, panel: PanelSpec):
+    """Recommend the dimensions to author the master image/video at.
+
+    - physical_canvas: author at this size for full bezel compensation. The hub
+      treats the master as the continuous physical surface (bezels included) and
+      crops each panel's active window out of it.
+    - active_mosaic: the simpler "no-comp" target -- each panel block maps 1:1,
+      seams will show the usual uncompensated offset.
+    """
+    ppu = panel.res_w / panel.active_w
+    active_w = cols * panel.res_w
+    active_h = rows * panel.res_h
+    phys_w = round(cols * panel.outer_w * ppu)
+    phys_h = round(rows * panel.outer_h * ppu)
+    return {
+        "physical_canvas": {"w": phys_w, "h": phys_h, "aspect": _aspect(phys_w, phys_h)},
+        "active_mosaic": {"w": active_w, "h": active_h, "aspect": _aspect(active_w, active_h)},
+    }
 
 
 def visible_source_rect(src_w, src_h, canvas_w, canvas_h, fit):

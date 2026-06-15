@@ -1,28 +1,33 @@
 #!/usr/bin/env python3
 """Video Wall Display Node.
 
-Runs on each TV's Raspberry Pi. It is intentionally "dumb and fast": it keeps
-one persistent, hardware-accelerated MPV window fullscreen (the same technique
-as the original QLab player) and does exactly what the hub tells it:
+Runs on each TV's Raspberry Pi. Intentionally "dumb and fast": it keeps one
+persistent, hardware-accelerated MPV window fullscreen (the technique from the
+original QLab player) and holds a **persistent library of pre-staged cues**.
 
-    POST /stage     (multipart file, kind=image|video, loop)  -> receive + preload
-    POST /show_at    {at, [loop]}                              -> flip at wall-clock T
-    POST /show                                                 -> flip immediately
-    POST /stop  /clear  /black
-    GET  /status
+Two phases, mirroring the original QLab workflow:
 
-Synchronized flips
-------------------
-/stage absorbs the variable-latency file transfer. /show_at schedules the
-actual flip against this node's own clock, so every panel changes on the same
-wall-clock instant. Keep node clocks tight with NTP/PTP on the LAN.
+    PREP (pre-production):
+      POST /stage   (multipart file, cue_id, kind=image|video, loop)
+        -> store this panel's slice for that cue on local disk
 
-Mounting rotation (portrait walls) is applied here via MPV's video-rotate, so
-the hub always sends tiles in wall-space orientation.
+    SHOW (live):
+      POST /show_at {cue_id, at, [loop]}   -> flip to that cue at wall-clock T
+      POST /show    {cue_id}               -> flip now
 
-Headless fallback: if MPV or a display is unavailable, the node still accepts
-commands and writes staged files to ./received/ so slicing and orchestration
-can be verified on a dev machine.
+No media crosses the LAN at show time -- a cue is just a tiny command, so the
+flip is near-instant. /show_at schedules the flip against this node's own clock
+so every panel changes in unison (keep node clocks tight with NTP).
+
+The library is persisted to a manifest on disk, so a built show is ready
+immediately after a reboot.
+
+Other routes:  GET /library   POST /forget {cue_id}   POST /identify
+               POST /stop /clear /black   GET /status
+
+Mounting rotation (portrait walls) is applied here via MPV video-rotate.
+Headless fallback: with no MPV/display the node still accepts everything and
+keeps files on disk so orchestration can be verified on a dev machine.
 """
 
 import argparse
@@ -47,11 +52,32 @@ CFG = {
 }
 
 STATE = {
-    "mpv": None,
-    "staged": None,      # dict: {path, kind, loop}
-    "showing": None,
+    "library": {},       # cue_id -> {"file": str, "kind": str, "loop": bool}
+    "showing": None,     # cue_id currently displayed
     "timer": None,
 }
+
+
+# --------------------------------------------------------------------------- #
+# Persistence
+# --------------------------------------------------------------------------- #
+def manifest_path():
+    return CFG["media_dir"] / "manifest.json"
+
+
+def load_library():
+    p = manifest_path()
+    if p.exists():
+        try:
+            STATE["library"] = json.loads(p.read_text())
+        except Exception:
+            STATE["library"] = {}
+    print(f"[node {CFG['id']}] loaded {len(STATE['library'])} cue(s) from disk")
+
+
+def save_library():
+    CFG["media_dir"].mkdir(parents=True, exist_ok=True)
+    manifest_path().write_text(json.dumps(STATE["library"], indent=2))
 
 
 # --------------------------------------------------------------------------- #
@@ -70,7 +96,7 @@ def mpv_command(command):
 
 def start_mpv():
     if CFG["headless"]:
-        print("[node] headless mode: MPV disabled, staging to ./received/")
+        print(f"[node {CFG['id']}] headless mode: MPV disabled")
         return
 
     if "DISPLAY" not in os.environ:
@@ -90,11 +116,8 @@ def start_mpv():
     try:
         STATE["mpv"] = subprocess.Popen([
             "mpv",
-            "--fullscreen",
-            "--keep-open=yes",
-            "--image-display-duration=inf",
-            "--idle=yes",
-            "--force-window=yes",
+            "--fullscreen", "--keep-open=yes",
+            "--image-display-duration=inf", "--idle=yes", "--force-window=yes",
             "--no-osc", "--no-osd-bar", "--osd-level=0",
             "--cursor-autohide=always",
             "--hwdec=auto", "--vo=gpu", "--gpu-context=x11egl",
@@ -103,41 +126,45 @@ def start_mpv():
             str(black) if black.exists() else "--idle=yes",
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except FileNotFoundError:
-        print("[node] mpv not found -> headless mode")
+        print(f"[node {CFG['id']}] mpv not found -> headless mode")
         CFG["headless"] = True
         return
 
     for _ in range(20):
         if os.path.exists(CFG["socket"]):
             time.sleep(0.3)
-            print("[node] MPV ready")
+            print(f"[node {CFG['id']}] MPV ready")
             return
         time.sleep(0.3)
-    print("[node] MPV socket not ready; commands may be dropped")
+    print(f"[node {CFG['id']}] MPV socket not ready; commands may drop")
 
 
-def show_file(path, kind, loop):
-    """Flip the persistent window to `path` immediately."""
+def display(path, kind, loop):
     if CFG["headless"]:
         print(f"[node {CFG['id']}] (headless) SHOW {kind} {path} loop={loop}")
-        STATE["showing"] = {"path": str(path), "kind": kind}
         return
-
     mpv_command(["loadfile", str(path), "replace"])
     mpv_command(["set_property", "video-rotate", CFG["rotation"]])
     mpv_command(["set_property", "loop-file", "inf" if loop else "no"])
     mpv_command(["set_property", "pause", False])
-    STATE["showing"] = {"path": str(path), "kind": kind}
 
 
 def show_black():
     if CFG["headless"]:
-        STATE["showing"] = None
         return
     black = Path("/tmp/wall-black.png")
     if black.exists():
         mpv_command(["loadfile", str(black), "replace"])
         mpv_command(["set_property", "loop-file", "inf"])
+
+
+def show_cue(cue_id):
+    cue = STATE["library"].get(cue_id)
+    if not cue:
+        return False
+    display(cue["file"], cue["kind"], cue.get("loop", False))
+    STATE["showing"] = cue_id
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -149,68 +176,99 @@ def status():
         "id": CFG["id"],
         "rotation": CFG["rotation"],
         "headless": CFG["headless"],
-        "staged": bool(STATE["staged"]),
+        "cues": sorted(STATE["library"].keys()),
         "showing": STATE["showing"],
         "clock": time.time(),
     })
 
 
+@app.route("/library")
+def library():
+    return jsonify(STATE["library"])
+
+
 @app.route("/stage", methods=["POST"])
 def stage():
-    """Receive and preload a tile, but do not display it yet."""
+    """Store this panel's slice for a cue (prep phase, pre-show)."""
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
+    cue_id = request.form.get("cue_id")
+    if not cue_id:
+        return jsonify({"error": "no cue_id"}), 400
     kind = request.form.get("kind", "image")
     loop = request.form.get("loop", "0") == "1"
 
-    media_dir = CFG["media_dir"]
-    media_dir.mkdir(parents=True, exist_ok=True)
+    cues_dir = CFG["media_dir"] / "cues"
+    cues_dir.mkdir(parents=True, exist_ok=True)
     f = request.files["file"]
-    dest = media_dir / f"staged_{f.filename}"
+    ext = Path(f.filename).suffix or (".mp4" if kind == "video" else ".png")
+    dest = cues_dir / f"{cue_id}{ext}"
     f.save(dest)
 
-    # Also keep a copy in received/ for headless inspection.
-    if CFG["headless"]:
-        recv = Path("received")
-        recv.mkdir(exist_ok=True)
-        (recv / f.filename).write_bytes(dest.read_bytes())
-
-    STATE["staged"] = {"path": dest, "kind": kind, "loop": loop}
-    return jsonify({"ok": True, "staged": str(dest)})
+    STATE["library"][cue_id] = {"file": str(dest), "kind": kind, "loop": loop}
+    save_library()
+    return jsonify({"ok": True, "cue_id": cue_id, "file": str(dest)})
 
 
 @app.route("/show", methods=["POST"])
 def show_now():
-    s = STATE["staged"]
-    if not s:
-        return jsonify({"error": "nothing staged"}), 400
-    show_file(s["path"], s["kind"], s["loop"])
-    return jsonify({"ok": True})
+    cue_id = (request.json or {}).get("cue_id")
+    if not show_cue(cue_id):
+        return jsonify({"error": f"cue {cue_id!r} not staged"}), 404
+    return jsonify({"ok": True, "showing": cue_id})
 
 
 @app.route("/show_at", methods=["POST"])
 def show_at():
-    """Schedule the flip of the staged media for wall-clock time `at`."""
-    s = STATE["staged"]
-    if not s:
-        return jsonify({"error": "nothing staged"}), 400
+    """Schedule a flip to `cue_id` at wall-clock time `at` (synchronized)."""
     data = request.json or {}
-    at = float(data.get("at", time.time()))
+    cue_id = data.get("cue_id")
+    cue = STATE["library"].get(cue_id)
+    if not cue:
+        return jsonify({"error": f"cue {cue_id!r} not staged"}), 404
     if "loop" in data:
-        s["loop"] = bool(data["loop"])
+        cue["loop"] = bool(data["loop"])
 
+    at = float(data.get("at", time.time()))
     if STATE["timer"]:
         STATE["timer"].cancel()
-
     delay = max(0.0, at - time.time())
 
     def _fire():
-        show_file(s["path"], s["kind"], s["loop"])
+        show_cue(cue_id)
 
     t = threading.Timer(delay, _fire)
     t.start()
     STATE["timer"] = t
-    return jsonify({"ok": True, "fires_in": delay})
+    return jsonify({"ok": True, "cue_id": cue_id, "fires_in": delay})
+
+
+@app.route("/forget", methods=["POST"])
+def forget():
+    cue_id = (request.json or {}).get("cue_id")
+    cue = STATE["library"].pop(cue_id, None)
+    if cue:
+        try:
+            os.remove(cue["file"])
+        except OSError:
+            pass
+        save_library()
+    return jsonify({"ok": True, "cue_id": cue_id})
+
+
+@app.route("/identify", methods=["POST"])
+def identify():
+    """Briefly display this node's grid label, to confirm physical placement."""
+    label = (request.json or {}).get("label", CFG["id"])
+    if CFG["headless"]:
+        print(f"[node {CFG['id']}] IDENTIFY -> {label}")
+        return jsonify({"ok": True, "headless": True})
+    img = Path(f"/tmp/ident-{CFG['id']}.png")
+    os.system(f"convert -size 1280x720 xc:#202020 -gravity center "
+              f"-pointsize 160 -fill white -annotate 0 '{label}' {img} 2>/dev/null")
+    if img.exists():
+        display(img, "image", True)
+    return jsonify({"ok": True, "label": label})
 
 
 @app.route("/stop", methods=["POST"])
@@ -228,6 +286,7 @@ def clear():
     if STATE["timer"]:
         STATE["timer"].cancel()
     show_black()
+    STATE["showing"] = None
     return jsonify({"ok": True})
 
 
@@ -248,6 +307,7 @@ def main():
     CFG["media_dir"] = Path(args.media_dir or f"media_{args.id}")
     CFG["socket"] = args.socket or f"/tmp/mpv-wall-{args.id}.sock"
 
+    load_library()
     print(f"[node {CFG['id']}] starting on :{args.port} "
           f"rotation={CFG['rotation']} headless={CFG['headless']}")
     start_mpv()
