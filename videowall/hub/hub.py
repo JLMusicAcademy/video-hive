@@ -133,7 +133,7 @@ def library_image(img_id):
     return Image.open(STORE / meta["file"]).convert("RGB")
 
 
-def add_library_image(name, fileobj):
+def add_library_image(name, fileobj, show=None):
     img_id = slugify(name)
     base, n = img_id, 1
     while img_id in STATE["library"]:
@@ -142,7 +142,8 @@ def add_library_image(name, fileobj):
     img = Image.open(fileobj).convert("RGB")
     rel = f"library/{img_id}.png"
     img.save(STORE / rel)
-    STATE["library"][img_id] = {"name": name, "file": rel, "builtin": False}
+    STATE["library"][img_id] = {"name": name, "file": rel, "builtin": False,
+                                "show": show}
     save_library()
     return img_id
 
@@ -216,7 +217,7 @@ def ensure_store():
     if "black" not in STATE["library"]:
         Image.new("RGB", (1920, 1920), (0, 0, 0)).save(LIB_DIR / "black.png")
         STATE["library"]["black"] = {"name": "Black", "file": "library/black.png",
-                                     "builtin": True}
+                                     "builtin": True, "show": None}
         save_library()
     STATE["settings"].setdefault("default_image", "black")
     save_settings()
@@ -473,7 +474,17 @@ def api_node_identify():
 # --------------------------------------------------------------------------- #
 @app.route("/api/library")
 def api_library():
-    return jsonify({"images": STATE["library"], "default": default_image_id()})
+    """Library images. ?show=<id> returns global (built-in) images plus that
+    show's images; omit the param to return everything."""
+    show = request.args.get("show")
+
+    def keep(v):
+        if v.get("builtin") or v.get("show") is None:
+            return True              # global / built-in: available to every show
+        return show is None or v.get("show") == show
+
+    imgs = {k: v for k, v in STATE["library"].items() if keep(v)}
+    return jsonify({"images": imgs, "default": default_image_id()})
 
 
 @app.route("/api/library", methods=["POST"])
@@ -481,7 +492,8 @@ def api_library_add():
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
-    img_id = add_library_image(name, request.files["file"].stream)
+    show = request.form.get("show") or active_show()["id"]
+    img_id = add_library_image(name, request.files["file"].stream, show=show)
     return jsonify({"ok": True, "id": img_id})
 
 

@@ -46,9 +46,11 @@ single wall-clock `show_at` timestamp so all panels change in unison (see
   show), and switch freely — each show keeps its own cues. **Distribute whole
   show** pushes every cue's pre-built pieces to the TVs at once (run it before
   the show, or again after a reboot / TV swap). Shows persist on the hub disk.
-- **Image library.** Reusable images stored on the hub (**Library** tab). A
-  built-in **Black** rectangle is always present. Upload your own; library
-  images can be used as compose sources and as the default fill.
+- **Image library.** Reusable images stored on the hub (**Library** tab),
+  **organized per show** — pick a show to see only its images (the built-in
+  **Black** rectangle is global and shown for every show). Upload by drag &
+  drop or browse. Library images can be used as compose sources and as the
+  default fill.
 - **Default image.** Each show has a default image (Black unless you change it)
   used for any panel a cue doesn't assign — so a cue always defines the whole
   wall.

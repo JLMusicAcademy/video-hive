@@ -8,15 +8,30 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
          background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#fdf2f8 100%);
-         color:#1e293b; min-height:100vh; padding:24px; }
-  .wrap { max-width:1180px; margin:0 auto; }
-  h1 { font-size:26px; font-weight:700; letter-spacing:-0.5px; }
+         color:#1e293b; min-height:100vh; }
+  .topbar { position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:12px; padding:14px 18px;
+            background:rgba(255,255,255,0.8); backdrop-filter:blur(8px); border-bottom:1px solid #eef1f6; flex-wrap:wrap; }
+  h1 { font-size:20px; font-weight:700; letter-spacing:-0.4px; }
   .sub { color:#64748b; font-size:13px; }
-  .topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .grow { flex:1; }
   .pill { display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:#eef2ff; color:#4338ca; margin-left:4px; font-weight:600; }
   .pill.show { background:#ede9fe; color:#6d28d9; }
+  .hamburger { background:#fff; border:1px solid #e9edf3; border-radius:12px; width:44px; height:44px; font-size:18px; cursor:pointer;
+               box-shadow:0 2px 8px rgba(15,23,42,0.06); display:flex; align-items:center; justify-content:center; }
+  .content { max-width:1100px; margin:0 auto; padding:22px 18px 60px; }
+
+  .backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.35); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
+  .backdrop.open { opacity:1; pointer-events:auto; }
+  .sidebar { position:fixed; top:0; left:0; height:100%; width:264px; background:#fff; box-shadow:8px 0 30px rgba(15,23,42,0.14);
+             transform:translateX(-100%); transition:transform .22s ease; z-index:50; padding:18px; display:flex; flex-direction:column; gap:4px; }
+  .sidebar.open { transform:translateX(0); }
+  .sidebar .brand { font-size:18px; font-weight:700; padding:6px 10px 14px; }
+  .navitem { padding:13px 14px; border-radius:12px; cursor:pointer; font-weight:600; color:#334155; display:flex; gap:12px; align-items:center; font-size:15px; }
+  .navitem:hover { background:#f1f5f9; }
+  .navitem.active { background:#eef2ff; color:#4338ca; }
+
   .card { background:#fff; border:1px solid #eef1f6; border-radius:18px; box-shadow:0 12px 34px rgba(15,23,42,0.07); padding:22px; }
-  .card h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
+  .card h2 { font-size:18px; font-weight:700; margin-bottom:6px; }
   label { display:block; font-size:13px; color:#64748b; margin:12px 0 5px; font-weight:500; }
   select,input[type=text],input[type=number],input[type=file] {
     width:100%; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; color:#1e293b; font-size:14px;
@@ -26,21 +41,21 @@
          transition:transform .12s, box-shadow .12s, background .15s; }
   .btn:hover { transform:translateY(-1px); }
   .btn-primary { background:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.35); }
-  .btn-primary:hover { background:#4f46e5; box-shadow:0 10px 22px rgba(99,102,241,0.45); }
+  .btn-primary:hover { background:#4f46e5; }
   .btn-go { background:#22c55e; color:#fff; box-shadow:0 8px 18px rgba(34,197,94,0.35); }
   .btn-go:hover { background:#16a34a; }
   .btn-secondary { background:#f1f5f9; color:#334155; box-shadow:0 3px 8px rgba(15,23,42,0.06); }
   .btn-secondary:hover { background:#e2e8f0; }
   .btn-danger { background:#ef4444; color:#fff; box-shadow:0 8px 18px rgba(239,68,68,0.30); }
   .btn-danger:hover { background:#dc2626; }
-  .btn-row { display:flex; gap:10px; } .btn-row .btn { flex:1; }
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; } .btn-row .btn { flex:1; min-width:120px; }
   .layouts { display:flex; gap:8px; flex-wrap:wrap; }
   .lay { padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600;
          box-shadow:0 2px 6px rgba(15,23,42,0.05); }
   .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; box-shadow:0 6px 14px rgba(99,102,241,0.35); }
-  .grid { display:grid; gap:6px; margin-top:14px; background:#eef2f7; padding:6px; border-radius:14px; }
+  .grid { display:grid; gap:6px; margin-top:14px; background:#eef2f7; padding:6px; border-radius:14px; overflow-x:auto; }
   .panel { background:#fff; border:1px solid #e2e8f0; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
-           font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; }
+           font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; min-width:64px; }
   .panel.portrait { aspect-ratio:9/16; }
   .panel.online { border-color:#22c55e; } .panel.offline { border-color:#f87171; }
   .dot { width:9px; height:9px; border-radius:50%; position:absolute; top:6px; right:6px; background:#cbd5e1; }
@@ -48,15 +63,11 @@
   .target { background:#f1f5ff; border:1px solid #e0e7ff; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; color:#3730a3; }
   .target b { color:#4338ca; }
   .item { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:12px 14px; margin-bottom:10px;
-          display:flex; align-items:center; justify-content:space-between; gap:8px; }
+          display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
   .item.active { border-color:#a5b4fc; background:#f5f3ff; }
   .item .nm { font-weight:700; } .item .mt { font-size:11px; color:#64748b; }
   .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px;
          padding:12px; margin-top:14px; max-height:130px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
-  .tabs { display:flex; gap:8px; margin:18px 0; flex-wrap:wrap; }
-  .tab { padding:9px 18px; background:#fff; border:1px solid #e9edf3; border-radius:999px; cursor:pointer; font-size:14px; font-weight:600;
-         color:#475569; box-shadow:0 2px 8px rgba(15,23,42,0.05); }
-  .tab.active { background:#6366f1; border-color:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.35); }
   .gc { display:grid; grid-template-columns:auto 1fr 84px auto; gap:8px; align-items:center; margin-top:8px; }
   .gc input { padding:8px; }
   .tvwrap { margin-top:12px; overflow-x:auto; background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:14px; }
@@ -71,32 +82,49 @@
   .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:14px; }
   .libcell { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:8px; text-align:center; }
   .libcell img { width:100%; height:76px; object-fit:cover; border-radius:8px; background:#000; }
-  .libcell .ln { font-size:12px; margin-top:6px; color:#334155; font-weight:600; }
+  .libcell .ln { font-size:12px; margin-top:6px; color:#334155; font-weight:600; word-break:break-word; }
   .showpick { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:14px; padding:14px; }
   .showpick label { margin-top:0; color:#6d28d9; }
+  .dropzone { border:2px dashed #c7d2fe; border-radius:16px; padding:30px 16px; text-align:center; color:#64748b; background:#f8fafc;
+              margin-top:8px; transition:.15s; cursor:pointer; }
+  .dropzone.drag { border-color:#6366f1; background:#eef2ff; color:#4338ca; }
+  .link { color:#4f46e5; font-weight:700; text-decoration:underline; }
+
+  @media (max-width:760px){
+    .content { padding:16px 12px 60px; }
+    h1 { font-size:18px; }
+    .hidexs { display:none; }
+    .card { padding:16px; border-radius:14px; }
+    .gc { grid-template-columns:auto 1fr; }
+    .gc .btn { grid-column:1 / -1; }
+    .tvgrid { grid-template-columns:repeat(var(--cols,3),minmax(96px,1fr)) !important; }
+    .sidebar { width:84vw; max-width:300px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topbar">
-    <h1>🐝 Video Hive Hub</h1>
-    <div>
-      <span class="sub">Show</span><span id="curShow" class="pill show">—</span>
-      <span class="sub" style="margin-left:8px">Wall</span><span id="curLayout" class="pill">—</span>
-      <button class="btn btn-secondary" style="margin:0;padding:7px 12px;margin-left:10px" onclick="refresh()">⟳ Nodes</button>
-    </div>
-  </div>
+<button class="backdrop" id="backdrop" onclick="closeDrawer()"></button>
+<nav class="sidebar" id="sidebar">
+  <div class="brand">🐝 Video Hive</div>
+  <div class="navitem active" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
+  <div class="navitem" data-nav="build" onclick="tab('build')">🛠 Build</div>
+  <div class="navitem" data-nav="run" onclick="tab('run')">▶ Run</div>
+  <div class="navitem" data-nav="shows" onclick="tab('shows')">🎬 Shows</div>
+  <div class="navitem" data-nav="library" onclick="tab('library')">🖼 Library</div>
+</nav>
 
-  <div class="tabs">
-    <div class="tab" data-tab="wall" onclick="tab('wall')">🧱 Wall</div>
-    <div class="tab active" data-tab="build" onclick="tab('build')">🛠 Build</div>
-    <div class="tab" data-tab="run" onclick="tab('run')">▶ Run</div>
-    <div class="tab" data-tab="shows" onclick="tab('shows')">🎬 Shows</div>
-    <div class="tab" data-tab="library" onclick="tab('library')">🖼 Library</div>
-  </div>
+<div class="topbar">
+  <button class="hamburger" onclick="openDrawer()">☰</button>
+  <h1 id="paneTitle">Wall</h1>
+  <div class="grow"></div>
+  <span class="sub hidexs">Show</span><span id="curShow" class="pill show">—</span>
+  <span class="sub hidexs" style="margin-left:6px">Wall</span><span id="curLayout" class="pill">—</span>
+  <button class="btn btn-secondary" style="margin:0;padding:8px 12px;margin-left:8px" onclick="refresh()">⟳</button>
+</div>
 
-  <!-- WALL: define the grid -->
-  <div class="card tabpane" data-pane="wall" style="display:none">
+<div class="content">
+  <!-- WALL -->
+  <div class="card tabpane" data-pane="wall">
     <h2>Wall — define the grid</h2>
     <div class="sub">Choose the layout, how content fits, and which TV sits in each cell.</div>
     <label>Layout</label>
@@ -115,7 +143,7 @@
   </div>
 
   <!-- BUILD -->
-  <div class="card tabpane" data-pane="build">
+  <div class="card tabpane" data-pane="build" style="display:none">
     <div class="showpick">
       <label>Building into show</label>
       <select id="buildShowSel" onchange="switchShow(this.value)"></select>
@@ -186,11 +214,13 @@
   <!-- LIBRARY -->
   <div class="card tabpane" data-pane="library" style="display:none">
     <h2>Image Library</h2>
-    <div class="sub">Reusable images stored on the hub. <b>Black</b> is built in and is the default fill.</div>
-    <label>Upload library image</label>
-    <div style="display:flex;gap:10px">
-      <input type="file" id="libFile" accept="image/*">
-      <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="uploadLibrary()">＋ Add</button>
+    <div class="sub">Images are organized by show. <b>Black</b> is built in and available to every show.</div>
+    <label>Show</label>
+    <select id="libShowSel" onchange="loadLibraryTab()"></select>
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('libFile').click()">
+      <div style="font-size:24px">⬆️</div>
+      <div>Drag &amp; drop images here, or <span class="link">browse</span></div>
+      <input type="file" id="libFile" accept="image/*" multiple hidden onchange="onLibFiles()">
     </div>
     <div class="libgrid" id="libGrid"></div>
   </div>
@@ -199,15 +229,20 @@
 <script>
 let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black';
 
-function log(m){ const e=document.getElementById('log'); e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
+function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
+const TITLES={wall:'Wall',build:'Build',run:'Run',shows:'Shows',library:'Library'};
+function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
+function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
 function tab(name){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  document.querySelectorAll('.navitem').forEach(t=>t.classList.toggle('active',t.dataset.nav===name));
   document.querySelectorAll('.tabpane').forEach(p=>p.style.display=p.dataset.pane===name?'block':'none');
+  document.getElementById('paneTitle').textContent=TITLES[name]||name;
   if(name==='wall'){ renderGrid(); renderGridConfig(); }
-  if(name==='build'){ loadShowSelector(); }
+  if(name==='build'){ loadShowSelector(); loadActiveLib(); }
   if(name==='run'){ loadCues(); }
   if(name==='shows'){ loadShows(); }
-  if(name==='library'){ loadLibrary(); }
+  if(name==='library'){ loadLibraryTab(); }
+  closeDrawer();
 }
 
 async function loadState(){
@@ -222,15 +257,15 @@ async function loadState(){
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${a.physical_canvas.w}×${a.physical_canvas.h}px</b> (${a.physical_canvas.aspect}, bezel-comp)`+
     `<br><span class="sub">or ${a.active_mosaic.w}×${a.active_mosaic.h}px (${a.active_mosaic.aspect}, no bezel comp)</span>`;
-  // solo target options
   let opts='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;
+  document.documentElement.style.setProperty('--cols',S.cols);
   renderGrid();
 }
 function renderGrid(){
   const g=document.getElementById('wallGrid'); if(!g||!S) return;
-  g.style.gridTemplateColumns=`repeat(${S.cols},1fr)`;
+  g.style.gridTemplateColumns=`repeat(${S.cols},minmax(64px,1fr))`;
   const portrait=S.orientation==='portrait'; let h='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`, st=nodeStatus[key];
@@ -258,41 +293,58 @@ async function refresh(){
 // ---- SHOW SELECTOR (Build) ----
 async function loadShowSelector(){
   const d=await (await fetch('/api/shows')).json();
-  const sel=document.getElementById('buildShowSel');
-  sel.innerHTML=d.shows.map(s=>`<option value="${s.id}" ${s.id===d.active?'selected':''}>${s.name} (${s.cues} cues)</option>`).join('');
+  document.getElementById('buildShowSel').innerHTML=d.shows.map(s=>
+    `<option value="${s.id}" ${s.id===d.active?'selected':''}>${s.name} (${s.cues} cues)</option>`).join('');
 }
 async function switchShow(id){
   await fetch('/api/show/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  await loadState(); log('building into '+id);
+  await loadState(); await loadActiveLib();
+  if(document.getElementById('buildMode').value==='compose') renderComposeGrid();
+  log('building into '+id);
 }
 
-// ---- LIBRARY ----
-async function loadLibrary(){
-  const d=await (await fetch('/api/library')).json();
+// ---- ACTIVE-SHOW LIBRARY (compose sources + default picker) ----
+async function loadActiveLib(){
+  const d=await (await fetch('/api/library?show='+encodeURIComponent(S.active_show.id))).json();
   LIB=d.images; LIBDEFAULT=d.default;
-  const grid=document.getElementById('libGrid');
-  if(grid) grid.innerHTML=Object.entries(LIB).map(([id,m])=>`
-    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}</div>
-      ${m.builtin?'<div class="mt sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
-    </div>`).join('');
   const sel=document.getElementById('defaultImg');
   if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
 }
-async function uploadLibrary(){
-  const f=document.getElementById('libFile').files[0]; if(!f){ alert('Choose an image'); return; }
-  const fd=new FormData(); fd.append('file',f); fd.append('name',f.name.replace(/\.[^.]+$/,''));
-  await fetch('/api/library',{method:'POST',body:fd});
-  document.getElementById('libFile').value=''; log('library image added'); loadLibrary();
+
+// ---- LIBRARY TAB (per-show view + drag/drop) ----
+async function loadLibraryTab(){
+  const shows=await (await fetch('/api/shows')).json();
+  const sel=document.getElementById('libShowSel');
+  if(!sel.dataset.init){ sel.dataset.init='1'; }
+  const cur=sel.value || shows.active;
+  sel.innerHTML=shows.shows.map(s=>`<option value="${s.id}" ${s.id===cur?'selected':''}>${s.name}</option>`).join('');
+  const showId=sel.value;
+  const d=await (await fetch('/api/library?show='+encodeURIComponent(showId))).json();
+  document.getElementById('libGrid').innerHTML=Object.entries(d.images).map(([id,m])=>`
+    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}${m.builtin?' ·global':''}</div>
+      ${m.builtin?'<div class="mt sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
+    </div>`).join('');
+}
+function onLibFiles(){ uploadLibFiles(document.getElementById('libFile').files); }
+async function uploadLibFiles(files){
+  const showId=document.getElementById('libShowSel').value;
+  let n=0;
+  for(const f of files){
+    if(!f.type.startsWith('image')) continue;
+    const fd=new FormData(); fd.append('file',f); fd.append('name',f.name.replace(/\.[^.]+$/,'')); fd.append('show',showId);
+    await fetch('/api/library',{method:'POST',body:fd}); n++;
+  }
+  document.getElementById('libFile').value=''; log(n+' image(s) added to '+showId); loadLibraryTab();
 }
 async function delLibrary(id){
   if(!confirm('Delete library image '+id+'?')) return;
   const r=await (await fetch('/api/library/'+id,{method:'DELETE'})).json();
-  if(r.error) alert(r.error); else { log('deleted library '+id); loadLibrary(); }
+  if(r.error) alert(r.error); else { log('deleted library '+id); loadLibraryTab(); }
 }
 
 // ---- SHOWS ----
 async function loadShows(){
-  await loadLibrary();
+  await loadActiveLib();
   const d=await (await fetch('/api/shows')).json();
   document.getElementById('showList').innerHTML=d.shows.map(s=>`
     <div class="item ${s.id===d.active?'active':''}">
@@ -360,7 +412,7 @@ function renderComposeGrid(){
       <select id="cr-${key}" style="font-size:11px;padding:3px;visibility:hidden" onchange="updatePreview()">
         <option value="full">Full</option><option value="slice">Slice</option></select></div>`;
   }
-  document.getElementById('composeGrid').innerHTML=`<div class="grid" style="grid-template-columns:repeat(${S.cols},1fr)">${cells}</div>`;
+  document.getElementById('composeGrid').innerHTML=`<div class="grid" style="grid-template-columns:repeat(${S.cols},minmax(78px,1fr))">${cells}</div>`;
 }
 function cellChange(key){
   const src=document.getElementById('cs-'+key).value;
@@ -468,10 +520,9 @@ async function delCue(id){
 }
 async function control(a){ await fetch('/api/control/'+a,{method:'POST'}); log('control: '+a); }
 
-// ---- GRID CONFIG (in Wall tab) ----
+// ---- GRID CONFIG (Wall tab) ----
 function renderGridConfig(){
-  if(!S) return;
-  let h='';
+  if(!S) return; let h='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`, n=S.nodes[key]||{host:'',port:''};
     h+=`<div class="gc"><span class="pill">${key}</span>
@@ -497,7 +548,15 @@ async function identify(key){
   log('identify '+key);
 }
 
-loadState().then(()=>{ refresh(); loadLibrary(); loadShowSelector(); });
+// ---- drag & drop on library ----
+(function(){
+  const dz=document.getElementById('dropzone');
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); if(ev!=='drop'||true) dz.classList.remove('drag'); }));
+  dz.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) uploadLibFiles(e.dataTransfer.files); });
+})();
+
+loadState().then(()=>{ refresh(); loadActiveLib(); loadShowSelector(); });
 setInterval(refresh,15000);
 </script>
 </body>
