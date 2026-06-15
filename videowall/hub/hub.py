@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Video Wall Hub.
+"""Video Hive Hub.
 
-The control unit. Two phases, matching the original QLab workflow:
+The control unit. Workflow:
 
-  BUILD (pre-production)
-    Author one master image/video at the full wall format. The hub does all the
-    splicing + bezel math and pushes each panel's slice to its node, filed under
-    a cue ID. Heavy media crosses the LAN once, ahead of the show.
-
-  FIRE (show time)
-    A cue is fired by ID -- the hub sends every node a tiny "show cue N"
-    command, synchronized so all panels flip in unison. No media moves, so the
-    flip is near-instant.
+  SHOW          A show is a named set of cues. Create unlimited shows, open one
+                to work on it, save as you go, then distribute + run it.
+  LIBRARY       Reusable images stored on the hub (a built-in black rectangle
+                plus anything you upload). Used as compose sources and as the
+                default for unassigned panels.
+  BUILD         Author a master at the wall format; the hub slices it (+ bezel
+                math) and files the per-panel pieces under a cue, on disk and
+                on each TV.
+  DISTRIBUTE    Push a whole show's pre-built pieces to the TVs (once, ahead of
+                the show, or again after a reboot / TV swap).
+  FIRE          Show a cue by ID -- a tiny synchronized command, no media moves.
 
 Run from this directory:
 
@@ -45,24 +47,27 @@ import tiler
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
-CUE_STORE = Path(os.path.dirname(os.path.abspath(__file__))) / "cue_store"
-CUES_JSON = CUE_STORE / "cues.json"
+STORE = Path(os.path.dirname(os.path.abspath(__file__))) / "store"
+LIB_DIR = STORE / "library"
+SHOWS_DIR = STORE / "shows"
+LIB_JSON = STORE / "library.json"
+SETTINGS_JSON = STORE / "settings.json"
 
 STATE = {
     "config_path": None,
     "config": None,
-    "cues": {},          # cue_id -> metadata
-    "build_jobs": {},    # job_id -> status
+    "library": {},        # img_id -> {name, file, builtin}
+    "settings": {},       # {active_show, default_image}
+    "show": None,         # active show dict (cached)
+    "build_jobs": {},
 }
 
-# Lead time before a synchronized flip (seconds). Must exceed worst-case node
-# command latency. Show-time commands are tiny, so this can be small.
 DEFAULT_FIRE_LEAD = 0.20
 DEFAULT_VIDEO_LEAD = 0.8
 
 
 # --------------------------------------------------------------------------- #
-# Config & cue persistence
+# Wall config
 # --------------------------------------------------------------------------- #
 def load_config(path):
     with open(path) as f:
@@ -73,16 +78,6 @@ def load_config(path):
 def save_config():
     with open(STATE["config_path"], "w") as f:
         json.dump(STATE["config"], f, indent=2)
-
-
-def load_cues():
-    if CUES_JSON.exists():
-        STATE["cues"] = json.loads(CUES_JSON.read_text())
-
-
-def save_cues():
-    CUE_STORE.mkdir(parents=True, exist_ok=True)
-    CUES_JSON.write_text(json.dumps(STATE["cues"], indent=2))
 
 
 def current_panel():
@@ -107,7 +102,125 @@ def node_for(row, col):
 
 def slugify(s):
     keep = "".join(c if c.isalnum() or c in "-_" else "-" for c in s.strip().lower())
-    return "-".join(filter(None, keep.split("-"))) or f"cue-{int(time.time())}"
+    return "-".join(filter(None, keep.split("-"))) or f"id-{int(time.time())}"
+
+
+# --------------------------------------------------------------------------- #
+# Library / settings / shows persistence
+# --------------------------------------------------------------------------- #
+def load_library():
+    STATE["library"] = json.loads(LIB_JSON.read_text()) if LIB_JSON.exists() else {}
+
+
+def save_library():
+    LIB_JSON.write_text(json.dumps(STATE["library"], indent=2))
+
+
+def load_settings():
+    STATE["settings"] = (json.loads(SETTINGS_JSON.read_text())
+                         if SETTINGS_JSON.exists() else {})
+
+
+def save_settings():
+    SETTINGS_JSON.write_text(json.dumps(STATE["settings"], indent=2))
+
+
+def library_image(img_id):
+    meta = STATE["library"].get(img_id)
+    if not meta:
+        img_id = "black"
+        meta = STATE["library"]["black"]
+    return Image.open(STORE / meta["file"]).convert("RGB")
+
+
+def add_library_image(name, fileobj):
+    img_id = slugify(name)
+    base, n = img_id, 1
+    while img_id in STATE["library"]:
+        img_id = f"{base}-{n}"; n += 1
+    LIB_DIR.mkdir(parents=True, exist_ok=True)
+    img = Image.open(fileobj).convert("RGB")
+    rel = f"library/{img_id}.png"
+    img.save(STORE / rel)
+    STATE["library"][img_id] = {"name": name, "file": rel, "builtin": False}
+    save_library()
+    return img_id
+
+
+def default_image_id():
+    show = active_show()
+    return (show.get("default_image") or STATE["settings"].get("default_image")
+            or "black")
+
+
+def show_path(show_id):
+    return SHOWS_DIR / f"{show_id}.json"
+
+
+def list_shows():
+    out = []
+    for p in sorted(SHOWS_DIR.glob("*.json")):
+        d = json.loads(p.read_text())
+        out.append({"id": d["id"], "name": d["name"],
+                    "cues": len(d.get("cues", {})), "created": d.get("created")})
+    return out
+
+
+def save_show(show):
+    SHOWS_DIR.mkdir(parents=True, exist_ok=True)
+    show_path(show["id"]).write_text(json.dumps(show, indent=2))
+
+
+def create_show(name):
+    show_id = slugify(name)
+    base, n = show_id, 1
+    while show_path(show_id).exists():
+        show_id = f"{base}-{n}"; n += 1
+    show = {"id": show_id, "name": name, "default_image": None,
+            "created": time.time(), "order": [], "cues": {}}
+    save_show(show)
+    return show
+
+
+def open_show(show_id):
+    STATE["show"] = json.loads(show_path(show_id).read_text())
+    STATE["settings"]["active_show"] = show_id
+    save_settings()
+    return STATE["show"]
+
+
+def active_show():
+    if STATE["show"] is None:
+        sid = STATE["settings"].get("active_show")
+        if sid and show_path(sid).exists():
+            STATE["show"] = json.loads(show_path(sid).read_text())
+        else:
+            shows = list_shows()
+            STATE["show"] = (json.loads(show_path(shows[0]["id"]).read_text())
+                             if shows else create_show("Default Show"))
+            STATE["settings"]["active_show"] = STATE["show"]["id"]
+            save_settings()
+    return STATE["show"]
+
+
+def show_asset_dir(show_id, cue_id):
+    return SHOWS_DIR / show_id / cue_id
+
+
+def ensure_store():
+    for d in (STORE, LIB_DIR, SHOWS_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+    load_library()
+    load_settings()
+    # Built-in black rectangle, always present and non-deletable.
+    if "black" not in STATE["library"]:
+        Image.new("RGB", (1920, 1920), (0, 0, 0)).save(LIB_DIR / "black.png")
+        STATE["library"]["black"] = {"name": "Black", "file": "library/black.png",
+                                     "builtin": True}
+        save_library()
+    STATE["settings"].setdefault("default_image", "black")
+    save_settings()
+    active_show()
 
 
 # --------------------------------------------------------------------------- #
@@ -118,7 +231,6 @@ def node_url(node, path):
 
 
 def post_targets(targets, path, **kwargs):
-    """POST to many (key, node) concurrently. Returns {key: (ok, detail)}."""
     def _one(key, node):
         try:
             r = requests.post(node_url(node, path), timeout=10, **kwargs)
@@ -157,7 +269,6 @@ def png_bytes(img):
 
 
 def slice_for_mode(src, mode, target):
-    """Return {(row,col): (filename, png_bytes)} for the given mode."""
     tiles, cw, ch, panel, layout = current_tiles()
     fit = STATE["config"].get("fit", "cover")
     staged = {}
@@ -177,49 +288,109 @@ def slice_for_mode(src, mode, target):
     return staged, (tiles, cw, ch, panel, layout)
 
 
+def resolve_sources(assignments):
+    """Build {source_key: PIL.Image} for compose: uploaded ("u:i"), library
+    ("lib:id") and the default image ("default")."""
+    sources = {"default": library_image(default_image_id())}
+    for i, f in enumerate(request.files.getlist("files")):
+        sources[f"u:{i}"] = Image.open(f.stream).convert("RGB")
+    for a in assignments:
+        s = a.get("source")
+        if isinstance(s, str) and s.startswith("lib:"):
+            sources.setdefault(s, library_image(s[4:]))
+    return sources
+
+
+def compose_images(sources, assignments):
+    """Per-panel images from an assignment. Unassigned panels use the default."""
+    tiles, cw, ch, panel, layout = current_tiles()
+    fit = STATE["config"].get("fit", "cover")
+    ppu = ppu_for(panel)
+    slice_cache = {}
+    out = {}
+    for a in assignments:
+        r, c = parse_target(a["panel"])
+        key = a.get("source", "default")
+        src = sources.get(key, sources["default"])
+        if a.get("render") == "slice":
+            if key not in slice_cache:
+                slice_cache[key] = slicer.slice_image(src, tiles, cw, ch, fit, ppu)
+            out[(r, c)] = slice_cache[key][(r, c)]
+        else:
+            out[(r, c)] = fit_single(src, panel, fit)
+    for t in tiles:
+        out.setdefault((t.row, t.col), fit_single(sources["default"], panel, fit))
+    return out, (tiles, cw, ch, panel, layout)
+
+
 def black_tile(panel):
     return Image.new("RGB", (panel.res_w, panel.res_h), (0, 0, 0))
 
 
-def compose_images(sources, assignments):
-    """Build a per-panel image dict from an arbitrary assignment.
-
-    `sources` is {index: PIL.Image}. `assignments` is a list of
-    {"panel": "r,c", "render": "slice"|"full"|"black", "source": index}.
-
-    "slice" uses the full-grid geometry so a sliced image stays registered
-    across whatever (possibly non-contiguous) panels reference it. Any panel
-    not assigned defaults to black, so a compose cue defines the whole wall.
-    """
-    tiles, cw, ch, panel, layout = current_tiles()
-    fit = STATE["config"].get("fit", "cover")
-    ppu = ppu_for(panel)
-
-    slice_cache = {}   # source index -> {(r,c): PIL.Image}
+def tiles_to_dataurls(imgs, max_px=360):
     out = {}
-    for a in assignments:
-        r, c = parse_target(a["panel"])
-        render = a.get("render", "black")
-        if render == "full":
-            out[(r, c)] = fit_single(sources[int(a["source"])], panel, fit)
-        elif render == "slice":
-            si = int(a["source"])
-            if si not in slice_cache:
-                slice_cache[si] = slicer.slice_image(
-                    sources[si], tiles, cw, ch, fit, ppu)
-            out[(r, c)] = slice_cache[si][(r, c)]
-        else:  # black / unknown
-            out[(r, c)] = black_tile(panel)
-
-    for t in tiles:                       # fill any unassigned panel
-        out.setdefault((t.row, t.col), black_tile(panel))
-    return out, (tiles, cw, ch, panel, layout)
+    for (r, c), img in imgs.items():
+        thumb = img.copy()
+        thumb.thumbnail((max_px, max_px))
+        buf = io.BytesIO()
+        thumb.save(buf, format="PNG")
+        out[f"{r},{c}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return out
 
 
-def read_sources():
-    """Load uploaded compose source images (multipart field 'files'), in order."""
-    return {i: Image.open(f.stream).convert("RGB")
-            for i, f in enumerate(request.files.getlist("files"))}
+# --------------------------------------------------------------------------- #
+# Cue asset storage + distribution
+# --------------------------------------------------------------------------- #
+def save_assets(show_id, cue_id, staged):
+    """Write per-panel files to disk. staged: {(r,c): (filename, bytes)}.
+    Returns {"r,c": filename}."""
+    adir = show_asset_dir(show_id, cue_id)
+    adir.mkdir(parents=True, exist_ok=True)
+    assets = {}
+    for (r, c), (fname, data) in staged.items():
+        (adir / fname).write_bytes(data)
+        assets[f"{r},{c}"] = fname
+    return assets
+
+
+def node_cue_id(show_id, cue_id):
+    return f"{show_id}__{cue_id}"
+
+
+def distribute_cue(show_id, cue):
+    """Push a cue's on-disk per-panel assets to their nodes."""
+    adir = show_asset_dir(show_id, cue["id"])
+    nid = node_cue_id(show_id, cue["id"])
+    loop = "1" if cue.get("loop") else "0"
+    kind = "video" if cue["type"] == "video" else "image"
+
+    def _one(key_fname):
+        key, fname = key_fname
+        r, c = parse_target(key)
+        node = node_for(r, c)
+        if not node:
+            return key, (False, "no node")
+        try:
+            with open(adir / fname, "rb") as fh:
+                resp = requests.post(node_url(node, "/stage"),
+                                     files={"file": (fname, fh)},
+                                     data={"cue_id": nid, "kind": kind, "loop": loop},
+                                     timeout=120)
+            return key, (resp.ok, resp.text[:120])
+        except Exception as e:
+            return key, (False, str(e))
+
+    items = list(cue["assets"].items())
+    with ThreadPoolExecutor(max_workers=max(1, len(items))) as ex:
+        return dict(ex.map(_one, items))
+
+
+def record_cue(cue):
+    show = active_show()
+    show["cues"][cue["id"]] = cue
+    if cue["id"] not in show["order"]:
+        show["order"].append(cue["id"])
+    save_show(show)
 
 
 # --------------------------------------------------------------------------- #
@@ -234,16 +405,17 @@ def index():
 def api_state():
     cfg = STATE["config"]
     tiles, cw, ch, panel, layout = current_tiles()
+    show = active_show()
     return jsonify({
-        "layout": cfg["layout"],
-        "fit": cfg.get("fit", "cover"),
+        "layout": cfg["layout"], "fit": cfg.get("fit", "cover"),
         "layouts": list(geometry.LAYOUTS.keys()),
         "rows": layout["rows"], "cols": layout["cols"],
-        "orientation": layout["orientation"],
-        "nodes": cfg["nodes"],
+        "orientation": layout["orientation"], "nodes": cfg["nodes"],
         "panel": panel.__dict__,
         "authoring": geometry.authoring_target(layout["rows"], layout["cols"], panel),
         "tiles": [t.__dict__ for t in tiles],
+        "active_show": {"id": show["id"], "name": show["name"],
+                        "default_image": default_image_id()},
     })
 
 
@@ -262,7 +434,6 @@ def api_layout():
 
 @app.route("/api/nodes", methods=["POST"])
 def api_nodes():
-    """Grid configuration tool: replace the node<->coordinate mapping."""
     data = request.json or {}
     nodes = data.get("nodes")
     if not isinstance(nodes, dict):
@@ -288,49 +459,153 @@ def api_nodes_status():
 
 @app.route("/api/node/identify", methods=["POST"])
 def api_node_identify():
-    data = request.json or {}
-    key = data.get("key")
+    key = (request.json or {}).get("key")
     node = STATE["config"]["nodes"].get(key)
     if not node:
         return jsonify({"error": "unknown node"}), 404
-    res = post_targets([(key, node)], "/identify", json={"label": key})
-    return jsonify({"ok": True, "result": res})
+    return jsonify({"ok": True,
+                    "result": post_targets([(key, node)], "/identify",
+                                           json={"label": key})})
 
 
 # --------------------------------------------------------------------------- #
-# Routes: BUILD (prep phase)
+# Routes: library + settings
+# --------------------------------------------------------------------------- #
+@app.route("/api/library")
+def api_library():
+    return jsonify({"images": STATE["library"], "default": default_image_id()})
+
+
+@app.route("/api/library", methods=["POST"])
+def api_library_add():
+    if "file" not in request.files:
+        return jsonify({"error": "no file"}), 400
+    name = request.form.get("name") or request.files["file"].filename
+    img_id = add_library_image(name, request.files["file"].stream)
+    return jsonify({"ok": True, "id": img_id})
+
+
+@app.route("/api/library/<img_id>", methods=["DELETE"])
+def api_library_delete(img_id):
+    meta = STATE["library"].get(img_id)
+    if not meta:
+        return jsonify({"error": "unknown image"}), 404
+    if meta.get("builtin"):
+        return jsonify({"error": "cannot delete built-in image"}), 400
+    try:
+        os.remove(STORE / meta["file"])
+    except OSError:
+        pass
+    del STATE["library"][img_id]
+    save_library()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/library/<img_id>/thumb")
+def api_library_thumb(img_id):
+    img = library_image(img_id)
+    img.thumbnail((200, 200))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
+@app.route("/api/settings", methods=["POST"])
+def api_settings():
+    data = request.json or {}
+    if "default_image" in data:
+        STATE["settings"]["default_image"] = data["default_image"]
+        save_settings()
+    return jsonify({"ok": True, "settings": STATE["settings"]})
+
+
+# --------------------------------------------------------------------------- #
+# Routes: shows
+# --------------------------------------------------------------------------- #
+@app.route("/api/shows")
+def api_shows():
+    return jsonify({"shows": list_shows(), "active": active_show()["id"]})
+
+
+@app.route("/api/shows", methods=["POST"])
+def api_shows_create():
+    name = (request.json or {}).get("name", "Untitled Show")
+    show = create_show(name)
+    open_show(show["id"])
+    return jsonify({"ok": True, "id": show["id"]})
+
+
+@app.route("/api/show/open", methods=["POST"])
+def api_show_open():
+    sid = (request.json or {}).get("id")
+    if not show_path(sid).exists():
+        return jsonify({"error": "unknown show"}), 404
+    open_show(sid)
+    return jsonify({"ok": True, "id": sid})
+
+
+@app.route("/api/show")
+def api_show():
+    show = active_show()
+    cues = [show["cues"][cid] for cid in show["order"] if cid in show["cues"]]
+    return jsonify({"id": show["id"], "name": show["name"],
+                    "default_image": default_image_id(), "cues": cues})
+
+
+@app.route("/api/show/<sid>", methods=["DELETE"])
+def api_show_delete(sid):
+    p = show_path(sid)
+    if not p.exists():
+        return jsonify({"error": "unknown show"}), 404
+    os.remove(p)
+    import shutil
+    shutil.rmtree(SHOWS_DIR / sid, ignore_errors=True)
+    if STATE["settings"].get("active_show") == sid:
+        STATE["show"] = None
+        active_show()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/show/default_image", methods=["POST"])
+def api_show_default_image():
+    img_id = (request.json or {}).get("default_image")
+    show = active_show()
+    show["default_image"] = img_id
+    save_show(show)
+    return jsonify({"ok": True, "default_image": default_image_id()})
+
+
+@app.route("/api/show/distribute", methods=["POST"])
+def api_show_distribute():
+    """Push every cue in the active show to the TVs."""
+    show = active_show()
+    results = {}
+    for cid in show["order"]:
+        cue = show["cues"].get(cid)
+        if cue and cue.get("assets"):
+            res = distribute_cue(show["id"], cue)
+            results[cid] = {k: v[0] for k, v in res.items()}
+    return jsonify({"ok": True, "distributed": results})
+
+
+# --------------------------------------------------------------------------- #
+# Routes: preview / live tiles
 # --------------------------------------------------------------------------- #
 @app.route("/api/preview", methods=["POST"])
 def api_preview():
-    if "file" not in request.files:
-        return jsonify({"error": "no file"}), 400
     mode = request.form.get("mode", "span")
     target = parse_target(request.form.get("target"))
     src = Image.open(request.files["file"].stream)
     staged, (tiles, cw, ch, panel, layout) = slice_for_mode(src, mode, target)
     imgs = {k: Image.open(io.BytesIO(p)) for k, (_, p) in staged.items()}
     mockup = slicer.wall_mockup(imgs, layout["rows"], layout["cols"], panel)
-    buf = io.BytesIO()
-    mockup.save(buf, format="PNG")
-    buf.seek(0)
+    buf = io.BytesIO(); mockup.save(buf, format="PNG"); buf.seek(0)
     return send_file(buf, mimetype="image/png")
-
-
-def tiles_to_dataurls(imgs, max_px=360):
-    """Turn {(r,c): PIL.Image} into {"r,c": data-URL} thumbnails for live preview."""
-    out = {}
-    for (r, c), img in imgs.items():
-        thumb = img.copy()
-        thumb.thumbnail((max_px, max_px))
-        buf = io.BytesIO()
-        thumb.save(buf, format="PNG")
-        out[f"{r},{c}"] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-    return out
 
 
 @app.route("/api/tiles", methods=["POST"])
 def api_tiles():
-    """Per-panel preview tiles for span/mirror/solo (live show-builder view)."""
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     mode = request.form.get("mode", "span")
@@ -338,128 +613,112 @@ def api_tiles():
     src = Image.open(request.files["file"].stream)
     staged, (tiles, cw, ch, panel, layout) = slice_for_mode(src, mode, target)
     imgs = {k: Image.open(io.BytesIO(p)) for k, (_, p) in staged.items()}
-    for t in tiles:                       # complete the grid (solo leaves gaps)
-        imgs.setdefault((t.row, t.col), black_tile(panel))
+    default = fit_single(library_image(default_image_id()), panel,
+                         STATE["config"].get("fit", "cover"))
+    for t in tiles:
+        imgs.setdefault((t.row, t.col), default)
     return jsonify({"tiles": tiles_to_dataurls(imgs), "rows": layout["rows"],
                     "cols": layout["cols"], "orientation": layout["orientation"]})
 
 
 @app.route("/api/tiles_compose", methods=["POST"])
 def api_tiles_compose():
-    """Per-panel preview tiles for compose mode."""
-    sources = read_sources()
     assignments = json.loads(request.form.get("assign", "[]"))
+    sources = resolve_sources(assignments)
     imgs, (tiles, cw, ch, panel, layout) = compose_images(sources, assignments)
     return jsonify({"tiles": tiles_to_dataurls(imgs), "rows": layout["rows"],
                     "cols": layout["cols"], "orientation": layout["orientation"]})
 
 
+# --------------------------------------------------------------------------- #
+# Routes: build cues (into the active show)
+# --------------------------------------------------------------------------- #
 @app.route("/api/cue/build", methods=["POST"])
 def api_cue_build():
-    """Slice a master image and distribute slices to nodes under a cue ID."""
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
     cue_id = slugify(request.form.get("cue_id") or name)
     mode = request.form.get("mode", "span")
     target = parse_target(request.form.get("target"))
+    show = active_show()
 
     src = Image.open(request.files["file"].stream)
     staged, _ = slice_for_mode(src, mode, target)
-
-    dist = distribute(cue_id, staged, kind="image", loop=False)
-    STATE["cues"][cue_id] = {
-        "id": cue_id, "name": name, "type": "image", "mode": mode,
-        "layout": STATE["config"]["layout"], "panels": list(dist["targets"]),
-        "created": time.time(),
-    }
-    save_cues()
-    return jsonify({"ok": True, "cue_id": cue_id, "distribute": dist["result"]})
-
-
-@app.route("/api/preview_compose", methods=["POST"])
-def api_preview_compose():
-    sources = read_sources()
-    assignments = json.loads(request.form.get("assign", "[]"))
-    imgs, (tiles, cw, ch, panel, layout) = compose_images(sources, assignments)
-    mockup = slicer.wall_mockup(imgs, layout["rows"], layout["cols"], panel)
-    buf = io.BytesIO()
-    mockup.save(buf, format="PNG")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    assets = save_assets(show["id"], cue_id, staged)
+    cue = {"id": cue_id, "name": name, "type": "image", "mode": mode,
+           "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+           "assets": assets, "loop": False, "created": time.time()}
+    record_cue(cue)
+    dist = distribute_cue(show["id"], cue)
+    return jsonify({"ok": True, "cue_id": cue_id,
+                    "distribute": {k: v[0] for k, v in dist.items()}})
 
 
 @app.route("/api/cue/build_compose", methods=["POST"])
 def api_cue_build_compose():
-    """Build a per-panel cue: each panel gets a slice / full image / black.
-
-    Generalizes span, mirror, solo and multi -- a sliced image stays
-    registered across any (non-contiguous) panels that reference it.
-    """
-    sources = read_sources()
     assignments = json.loads(request.form.get("assign", "[]"))
     name = request.form.get("name") or "compose"
     cue_id = slugify(request.form.get("cue_id") or name)
+    show = active_show()
 
+    sources = resolve_sources(assignments)
     imgs, _ = compose_images(sources, assignments)
     staged = {(r, c): (f"r{r}c{c}.png", png_bytes(img))
               for (r, c), img in imgs.items()}
-    dist = distribute(cue_id, staged, kind="image", loop=False)
-    STATE["cues"][cue_id] = {
-        "id": cue_id, "name": name, "type": "image", "mode": "compose",
-        "layout": STATE["config"]["layout"], "panels": list(dist["targets"]),
-        "assign": assignments, "created": time.time(),
-    }
-    save_cues()
-    return jsonify({"ok": True, "cue_id": cue_id, "distribute": dist["result"]})
+    assets = save_assets(show["id"], cue_id, staged)
+    cue = {"id": cue_id, "name": name, "type": "image", "mode": "compose",
+           "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+           "assets": assets, "assign": assignments, "loop": False,
+           "created": time.time()}
+    record_cue(cue)
+    dist = distribute_cue(show["id"], cue)
+    return jsonify({"ok": True, "cue_id": cue_id,
+                    "distribute": {k: v[0] for k, v in dist.items()}})
 
 
 @app.route("/api/cue/build_video", methods=["POST"])
 def api_cue_build_video():
-    """Tile a master video and distribute tile files to nodes under a cue ID."""
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
     cue_id = slugify(request.form.get("cue_id") or name)
+    show = active_show()
 
-    CUE_STORE.mkdir(parents=True, exist_ok=True)
-    src_path = CUE_STORE / f"_src_{cue_id}.mp4"
+    adir = show_asset_dir(show["id"], cue_id)
+    adir.mkdir(parents=True, exist_ok=True)
+    src_path = adir / "_source.mp4"
     request.files["file"].save(src_path)
 
     job_id = str(int(time.time() * 1000))
     STATE["build_jobs"][job_id] = {"state": "tiling", "done": 0, "total": 0}
     threading.Thread(target=_build_video_worker,
-                     args=(job_id, cue_id, name, src_path), daemon=True).start()
+                     args=(job_id, show["id"], cue_id, name, src_path, adir),
+                     daemon=True).start()
     return jsonify({"ok": True, "job_id": job_id, "cue_id": cue_id})
 
 
-def _build_video_worker(job_id, cue_id, name, src_path):
+def _build_video_worker(job_id, show_id, cue_id, name, src_path, adir):
     job = STATE["build_jobs"][job_id]
     try:
         tiles, cw, ch, panel, layout = current_tiles()
         fit = STATE["config"].get("fit", "cover")
-        out_dir = CUE_STORE / f"tiles_{cue_id}"
         job["total"] = len(tiles)
-        files = tiler.tile_video(src_path, out_dir, tiles, cw, ch, fit,
+        files = tiler.tile_video(src_path, adir, tiles, cw, ch, fit,
                                  progress=lambda d, t, k: job.update(done=d))
-        job["state"] = "distributing"
-        targets = []
-        for (r, c), path in files.items():
-            node = node_for(r, c)
-            if not node:
-                continue
-            with open(path, "rb") as fh:
-                requests.post(node_url(node, "/stage"),
-                              files={"file": (path.name, fh)},
-                              data={"cue_id": cue_id, "kind": "video", "loop": "0"},
-                              timeout=120)
-            targets.append(f"{r},{c}")
-        STATE["cues"][cue_id] = {
-            "id": cue_id, "name": name, "type": "video", "mode": "span",
-            "layout": STATE["config"]["layout"], "panels": targets,
-            "created": time.time(),
-        }
-        save_cues()
+        assets = {f"{r},{c}": path.name for (r, c), path in files.items()}
+        cue = {"id": cue_id, "name": name, "type": "video", "mode": "span",
+               "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+               "assets": assets, "loop": False, "created": time.time()}
+        # record into the (possibly still-active) show
+        show = json.loads(show_path(show_id).read_text())
+        show["cues"][cue_id] = cue
+        if cue_id not in show["order"]:
+            show["order"].append(cue_id)
+        save_show(show)
+        if STATE["show"] and STATE["show"]["id"] == show_id:
+            STATE["show"] = show
+        distribute_cue(show_id, cue)
         job["state"] = "ready"
         job["cue_id"] = cue_id
     except Exception as e:
@@ -472,74 +731,53 @@ def api_build_status(job_id):
     return jsonify(STATE["build_jobs"].get(job_id, {"state": "unknown"}))
 
 
-def distribute(cue_id, staged, kind, loop):
-    """Push each slice to its node, filed under cue_id (prep phase)."""
-    targets = []
-
-    def _stage(key, payload):
-        r, c = key
-        node = node_for(r, c)
-        if not node:
-            return key, (False, "no node")
-        fname, data = payload
-        try:
-            resp = requests.post(
-                node_url(node, "/stage"),
-                files={"file": (fname, io.BytesIO(data))},
-                data={"cue_id": cue_id, "kind": kind, "loop": "1" if loop else "0"},
-                timeout=30)
-            return key, (resp.ok, resp.text[:120])
-        except Exception as e:
-            return key, (False, str(e))
-
-    with ThreadPoolExecutor(max_workers=max(1, len(staged))) as ex:
-        res = dict(ex.map(lambda kp: _stage(*kp), staged.items()))
-    for k, (ok, _) in res.items():
-        if ok:
-            targets.append(f"{k[0]},{k[1]}")
-    return {"result": {f"{r},{c}": v for (r, c), v in res.items()},
-            "targets": targets}
-
-
 # --------------------------------------------------------------------------- #
-# Routes: cue library + FIRE (show time)
+# Routes: cue library (active show) + fire
 # --------------------------------------------------------------------------- #
 @app.route("/api/cues")
 def api_cues():
-    return jsonify(STATE["cues"])
+    show = active_show()
+    return jsonify({cid: show["cues"][cid] for cid in show["order"]
+                    if cid in show["cues"]})
 
 
 @app.route("/api/cue/fire", methods=["POST"])
 def api_cue_fire():
-    """Show a pre-built cue on every panel that has it, synchronized."""
     data = request.json or {}
     cue_id = data.get("cue_id")
-    cue = STATE["cues"].get(cue_id)
+    show = active_show()
+    cue = show["cues"].get(cue_id)
     if not cue:
         return jsonify({"error": f"unknown cue {cue_id!r}"}), 404
     loop = bool(data.get("loop", False))
     lead = float(data.get("lead",
                           DEFAULT_VIDEO_LEAD if cue["type"] == "video"
                           else DEFAULT_FIRE_LEAD))
-
+    nid = node_cue_id(show["id"], cue_id)
     show_at = time.time() + lead
     targets = [(k, STATE["config"]["nodes"][k])
                for k in cue["panels"] if k in STATE["config"]["nodes"]]
     res = post_targets(targets, "/show_at",
-                       json={"cue_id": cue_id, "at": show_at, "loop": loop})
+                       json={"cue_id": nid, "at": show_at, "loop": loop})
     return jsonify({"ok": True, "cue_id": cue_id, "show_at": show_at, "nodes": res})
 
 
 @app.route("/api/cue/delete", methods=["POST"])
 def api_cue_delete():
     cue_id = (request.json or {}).get("cue_id")
-    cue = STATE["cues"].pop(cue_id, None)
+    show = active_show()
+    cue = show["cues"].pop(cue_id, None)
     if not cue:
         return jsonify({"error": "unknown cue"}), 404
+    if cue_id in show["order"]:
+        show["order"].remove(cue_id)
+    save_show(show)
+    nid = node_cue_id(show["id"], cue_id)
     targets = [(k, STATE["config"]["nodes"][k])
                for k in cue["panels"] if k in STATE["config"]["nodes"]]
-    post_targets(targets, "/forget", json={"cue_id": cue_id})
-    save_cues()
+    post_targets(targets, "/forget", json={"cue_id": nid})
+    import shutil
+    shutil.rmtree(show_asset_dir(show["id"], cue_id), ignore_errors=True)
     return jsonify({"ok": True, "cue_id": cue_id})
 
 
@@ -565,14 +803,15 @@ def main():
     args = ap.parse_args()
 
     load_config(args.config)
-    load_cues()
+    ensure_store()
+    show = active_show()
     print("=" * 60)
     print("Video Hive Hub")
     print("=" * 60)
     print(f"Config : {args.config}")
     print(f"Layout : {STATE['config']['layout']}")
     print(f"Nodes  : {len(STATE['config']['nodes'])}")
-    print(f"Cues   : {len(STATE['cues'])}")
+    print(f"Show   : {show['name']} ({len(show['cues'])} cues)")
     print(f"Open   : http://localhost:{args.port}")
     print("=" * 60)
     app.run(host=args.host, port=args.port)

@@ -4,4 +4,5 @@ _work/
 received/
 media_*/
 cue_store/
+store/
 *.log

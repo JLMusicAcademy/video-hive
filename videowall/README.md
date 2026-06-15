@@ -39,6 +39,20 @@ command — no media moves, so the flip is near-instant. The command carries a
 single wall-clock `show_at` timestamp so all panels change in unison (see
 *Synchronized flips*).
 
+## Shows, library & default image
+
+- **Shows.** A *show* is a named, ordered set of cues. Create unlimited shows in
+  the **Shows** tab, open one to work on it (cues you build go into the open
+  show), and switch freely — each show keeps its own cues. **Distribute whole
+  show** pushes every cue's pre-built pieces to the TVs at once (run it before
+  the show, or again after a reboot / TV swap). Shows persist on the hub disk.
+- **Image library.** Reusable images stored on the hub (**Library** tab). A
+  built-in **Black** rectangle is always present. Upload your own; library
+  images can be used as compose sources and as the default fill.
+- **Default image.** Each show has a default image (Black unless you change it)
+  used for any panel a cue doesn't assign — so a cue always defines the whole
+  wall.
+
 ## Supported layouts
 
 | Orientation | Layouts | Panel (wall-space) |
@@ -67,13 +81,13 @@ Pick a grid and the hub shows the exact size to author your master at, e.g. for
 - **mirror** — the same whole image on every panel.
 - **solo** — one image to a single selected panel (individually addressable).
 - **compose** — per-panel assignment: each panel independently gets a **slice**
-  of an image, a **full** fitted image, or **black**. A sliced image uses the
-  full-grid geometry, so it stays registered across whatever (possibly
-  non-contiguous) panels reference it — e.g. on a 1×5 wall, image A sliced
-  across TV1/3/5 while TV2/4 show their own full images, with TV1/3/5 still
-  perfectly aligned as if the whole row were image A. Compose generalizes the
-  other three modes; unassigned panels default to black, so a compose cue
-  defines the entire wall.
+  of an image, a **full** fitted image (from an upload or the library), or the
+  show's **default** image. A sliced image uses the full-grid geometry, so it
+  stays registered across whatever (possibly non-contiguous) panels reference it
+  — e.g. on a 1×5 wall, image A sliced across TV1/3/5 while TV2/4 show their own
+  full images, with TV1/3/5 still perfectly aligned as if the whole row were
+  image A. Compose generalizes the other three modes; unassigned panels fall
+  back to the default image, so a compose cue defines the entire wall.
 
 ## Synchronized flips (the latency answer)
 
@@ -147,14 +161,16 @@ sound separately (one node or a dedicated output) to avoid duplicate playback.
 
 ## Status / scope
 
-Working prototype: **images + pre-processed video**, build-once / fire-by-cue,
-on a Pi-class hub. Verified end-to-end (slicing, bezel comp, distribution,
-disk persistence across reboot, synchronized fire) with headless nodes.
+Working prototype: **images + pre-processed video**, organized into **shows**
+(named cue sets) with an image **library** and per-show **default image**,
+build-once / fire-by-cue, on a Pi-class hub. Verified end-to-end (slicing, bezel
+comp, compose, distribution, disk persistence, show isolation, custom default
+image, synchronized fire) with headless nodes.
 
 Not yet built (candidate next steps):
 
 - **QLab bridge** — OSC listener so a QLab Network cue fires a wall cue.
 - Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
-- Pre-decode on stage; audio routing; show/cue ordering & playlists.
+- Pre-decode on stage; audio routing; cue reordering UI.
 - Separate runtime config from the shipped example so running the hub doesn't
   mutate `wall.example.json`.
