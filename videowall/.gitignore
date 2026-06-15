@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+_work/
+received/
+media_*/
+*.log

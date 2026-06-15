@@ -1,0 +1,43 @@
+{
+  "layout": "1x3",
+  "fit": "cover",
+  "_comment": "Physical dimensions are in millimetres. The example panel is an 8ft-wide 16:9 TV (active 2438x1372mm = 96x54in) with a 20mm bezel on each side. The portrait block is the same panel rotated 90 degrees for vertical mounting.",
+  "panels": {
+    "landscape": {
+      "active_w": 2438,
+      "active_h": 1372,
+      "outer_w": 2478,
+      "outer_h": 1412,
+      "res_w": 1920,
+      "res_h": 1080,
+      "rotation": 0
+    },
+    "portrait": {
+      "active_w": 1372,
+      "active_h": 2438,
+      "outer_w": 1412,
+      "outer_h": 2478,
+      "res_w": 1080,
+      "res_h": 1920,
+      "rotation": 90
+    }
+  },
+  "nodes": {
+    "0,0": {
+      "host": "127.0.0.1",
+      "port": 8001
+    },
+    "0,1": {
+      "host": "127.0.0.1",
+      "port": 8002
+    },
+    "1,0": {
+      "host": "127.0.0.1",
+      "port": 8003
+    },
+    "1,1": {
+      "host": "127.0.0.1",
+      "port": 8004
+    }
+  }
+}

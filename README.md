@@ -1,5 +1,12 @@
 # QLab Media Player for Raspberry Pi
 
+> **New direction → [`videowall/`](videowall/README.md):** a multi-display video
+> wall (hub + one Pi per TV) that sends a single image to one display, mirrors it
+> across a grid, or breaks it into pieces so the whole wall shows one continuous
+> picture — with bezel compensation, portrait/landscape layouts, and
+> synchronized pre-processed video. The original single-display QLab player below
+> is the proven foundation it builds on.
+
 > Control your Raspberry Pi's HDMI display from QLab using OSC commands. Professional media playback with hardware acceleration and smooth transitions.
 
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%205-red)
