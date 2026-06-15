@@ -95,14 +95,27 @@
       <div class="sub">Author one master at the format shown under the wall. The hub splices + does bezel math, then pushes slices to each TV.</div>
       <label>Cue name / ID</label>
       <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
-      <label>Master file (image or video)</label>
-      <input type="file" id="buildFile" accept="image/*,video/*">
       <label>Mode</label>
-      <select id="buildMode">
+      <select id="buildMode" onchange="onModeChange()">
         <option value="span">span — one master across the whole grid</option>
         <option value="mirror">mirror — same image on every panel</option>
         <option value="solo">solo — one image to the selected panel</option>
+        <option value="compose">compose — mix slices, full images &amp; black per panel</option>
       </select>
+
+      <div id="simpleBuild">
+        <label>Master file (image or video)</label>
+        <input type="file" id="buildFile" accept="image/*,video/*">
+      </div>
+
+      <div id="composeEditor" style="display:none">
+        <label>Source images (add the images you'll place on panels)</label>
+        <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
+        <div id="composeTray" class="sub" style="margin-top:6px"></div>
+        <div class="sub" style="margin-top:8px">For each panel, pick an image and how it renders. <b>Slice</b> uses the full-grid geometry, so one image stays aligned across whatever panels share it.</div>
+        <div id="composeGrid" style="margin-top:8px"></div>
+      </div>
+
       <div class="btn-row">
         <button class="btn btn-secondary" onclick="previewBuild()">👁 Preview</button>
         <button class="btn btn-primary" onclick="buildCue()">⤓ Build + Distribute</button>
@@ -179,6 +192,66 @@ async function refresh(){
 }
 
 // ---- BUILD ----
+let composeImages = [];   // File[]
+
+function onModeChange(){
+  const compose = document.getElementById('buildMode').value === 'compose';
+  document.getElementById('composeEditor').style.display = compose ? 'block' : 'none';
+  document.getElementById('simpleBuild').style.display = compose ? 'none' : 'block';
+  if(compose) renderComposeGrid();
+}
+function onComposeFiles(){
+  composeImages = Array.from(document.getElementById('composeFiles').files);
+  document.getElementById('composeTray').innerHTML =
+    composeImages.map((f,i)=>`<span class="pill">Image ${i+1}: ${f.name}</span>`).join(' ');
+  renderComposeGrid();
+}
+function renderComposeGrid(){
+  const el=document.getElementById('composeGrid');
+  if(!S) return;
+  const opts=composeImages.map((f,i)=>`<option value="${i}">Image ${i+1}</option>`).join('');
+  let h=`<div class="grid" style="background:#000">`;
+  el.style=''; // container only
+  const portrait=S.orientation==='portrait';
+  let cells='';
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
+    const key=`${r},${c}`;
+    cells+=`<div class="panel ${portrait?'portrait':''}" style="flex-direction:column;gap:2px;cursor:default;padding:4px">
+      <div style="font-size:10px">${key}</div>
+      <select id="cs-${key}" style="font-size:11px;padding:2px" onchange="cellChange('${key}')">
+        <option value="black">Black</option>${opts}
+      </select>
+      <select id="cr-${key}" style="font-size:11px;padding:2px">
+        <option value="full">Full</option><option value="slice">Slice</option>
+      </select></div>`;
+  }
+  el.innerHTML=`<div class="grid" style="grid-template-columns:repeat(${S.cols},1fr)">${cells}</div>`;
+}
+function cellChange(key){
+  const src=document.getElementById('cs-'+key).value;
+  document.getElementById('cr-'+key).style.visibility = (src==='black') ? 'hidden' : 'visible';
+}
+function composeAssign(){
+  const a=[];
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
+    const key=`${r},${c}`;
+    const src=document.getElementById('cs-'+key).value;
+    const render=document.getElementById('cr-'+key).value;
+    a.push(src==='black' ? {panel:key,render:'black'}
+                         : {panel:key,source:parseInt(src),render});
+  }
+  return a;
+}
+function composeForm(){
+  if(!composeImages.length){ alert('Add at least one source image'); return null; }
+  const fd=new FormData();
+  composeImages.forEach(f=>fd.append('files',f));
+  fd.append('assign',JSON.stringify(composeAssign()));
+  const name=document.getElementById('cueName').value||'compose';
+  fd.append('name',name); fd.append('cue_id',name);
+  return fd;
+}
+
 function buildForm(){
   const f=document.getElementById('buildFile').files[0];
   if(!f){ alert('Choose a master file'); return null; }
@@ -194,12 +267,26 @@ function buildForm(){
   return {fd,file:f};
 }
 async function previewBuild(){
+  if(document.getElementById('buildMode').value==='compose'){
+    const fd=composeForm(); if(!fd) return;
+    const r=await fetch('/api/preview_compose',{method:'POST',body:fd});
+    const img=document.getElementById('preview'); img.src=URL.createObjectURL(await r.blob()); img.style.display='block';
+    return;
+  }
   const b=buildForm(); if(!b) return;
   if(b.file.type.startsWith('video')){ alert('Preview is for images; build video directly.'); return; }
   const r=await fetch('/api/preview',{method:'POST',body:b.fd});
   const img=document.getElementById('preview'); img.src=URL.createObjectURL(await r.blob()); img.style.display='block';
 }
 async function buildCue(){
+  if(document.getElementById('buildMode').value==='compose'){
+    const fd=composeForm(); if(!fd) return;
+    document.getElementById('buildStatus').textContent='building…';
+    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:fd})).json();
+    document.getElementById('buildStatus').textContent='built compose cue: '+r.cue_id;
+    log('built compose cue '+r.cue_id); loadCues();
+    return;
+  }
   const b=buildForm(); if(!b) return;
   document.getElementById('buildStatus').textContent='building…';
   if(b.file.type.startsWith('video')){

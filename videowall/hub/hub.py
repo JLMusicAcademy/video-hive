@@ -176,6 +176,51 @@ def slice_for_mode(src, mode, target):
     return staged, (tiles, cw, ch, panel, layout)
 
 
+def black_tile(panel):
+    return Image.new("RGB", (panel.res_w, panel.res_h), (0, 0, 0))
+
+
+def compose_images(sources, assignments):
+    """Build a per-panel image dict from an arbitrary assignment.
+
+    `sources` is {index: PIL.Image}. `assignments` is a list of
+    {"panel": "r,c", "render": "slice"|"full"|"black", "source": index}.
+
+    "slice" uses the full-grid geometry so a sliced image stays registered
+    across whatever (possibly non-contiguous) panels reference it. Any panel
+    not assigned defaults to black, so a compose cue defines the whole wall.
+    """
+    tiles, cw, ch, panel, layout = current_tiles()
+    fit = STATE["config"].get("fit", "cover")
+    ppu = ppu_for(panel)
+
+    slice_cache = {}   # source index -> {(r,c): PIL.Image}
+    out = {}
+    for a in assignments:
+        r, c = parse_target(a["panel"])
+        render = a.get("render", "black")
+        if render == "full":
+            out[(r, c)] = fit_single(sources[int(a["source"])], panel, fit)
+        elif render == "slice":
+            si = int(a["source"])
+            if si not in slice_cache:
+                slice_cache[si] = slicer.slice_image(
+                    sources[si], tiles, cw, ch, fit, ppu)
+            out[(r, c)] = slice_cache[si][(r, c)]
+        else:  # black / unknown
+            out[(r, c)] = black_tile(panel)
+
+    for t in tiles:                       # fill any unassigned panel
+        out.setdefault((t.row, t.col), black_tile(panel))
+    return out, (tiles, cw, ch, panel, layout)
+
+
+def read_sources():
+    """Load uploaded compose source images (multipart field 'files'), in order."""
+    return {i: Image.open(f.stream).convert("RGB")
+            for i, f in enumerate(request.files.getlist("files"))}
+
+
 # --------------------------------------------------------------------------- #
 # Routes: state / config
 # --------------------------------------------------------------------------- #
@@ -288,6 +333,43 @@ def api_cue_build():
         "id": cue_id, "name": name, "type": "image", "mode": mode,
         "layout": STATE["config"]["layout"], "panels": list(dist["targets"]),
         "created": time.time(),
+    }
+    save_cues()
+    return jsonify({"ok": True, "cue_id": cue_id, "distribute": dist["result"]})
+
+
+@app.route("/api/preview_compose", methods=["POST"])
+def api_preview_compose():
+    sources = read_sources()
+    assignments = json.loads(request.form.get("assign", "[]"))
+    imgs, (tiles, cw, ch, panel, layout) = compose_images(sources, assignments)
+    mockup = slicer.wall_mockup(imgs, layout["rows"], layout["cols"], panel)
+    buf = io.BytesIO()
+    mockup.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
+@app.route("/api/cue/build_compose", methods=["POST"])
+def api_cue_build_compose():
+    """Build a per-panel cue: each panel gets a slice / full image / black.
+
+    Generalizes span, mirror, solo and multi -- a sliced image stays
+    registered across any (non-contiguous) panels that reference it.
+    """
+    sources = read_sources()
+    assignments = json.loads(request.form.get("assign", "[]"))
+    name = request.form.get("name") or "compose"
+    cue_id = slugify(request.form.get("cue_id") or name)
+
+    imgs, _ = compose_images(sources, assignments)
+    staged = {(r, c): (f"r{r}c{c}.png", png_bytes(img))
+              for (r, c), img in imgs.items()}
+    dist = distribute(cue_id, staged, kind="image", loop=False)
+    STATE["cues"][cue_id] = {
+        "id": cue_id, "name": name, "type": "image", "mode": "compose",
+        "layout": STATE["config"]["layout"], "panels": list(dist["targets"]),
+        "assign": assignments, "created": time.time(),
     }
     save_cues()
     return jsonify({"ok": True, "cue_id": cue_id, "distribute": dist["result"]})

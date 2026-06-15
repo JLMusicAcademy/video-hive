@@ -66,6 +66,14 @@ Pick a grid and the hub shows the exact size to author your master at, e.g. for
 - **span** — one master sliced across the whole grid (the video-wall look).
 - **mirror** — the same whole image on every panel.
 - **solo** — one image to a single selected panel (individually addressable).
+- **compose** — per-panel assignment: each panel independently gets a **slice**
+  of an image, a **full** fitted image, or **black**. A sliced image uses the
+  full-grid geometry, so it stays registered across whatever (possibly
+  non-contiguous) panels reference it — e.g. on a 1×5 wall, image A sliced
+  across TV1/3/5 while TV2/4 show their own full images, with TV1/3/5 still
+  perfectly aligned as if the whole row were image A. Compose generalizes the
+  other three modes; unassigned panels default to black, so a compose cue
+  defines the entire wall.
 
 ## Synchronized flips (the latency answer)
 
