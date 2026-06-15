@@ -7,194 +7,214 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-         background:linear-gradient(135deg,#1f2937 0%,#111827 100%); color:#e5e7eb; min-height:100vh; padding:20px; }
-  .wrap { max-width:1240px; margin:0 auto; }
-  h1 { font-size:24px; } .sub { color:#9ca3af; font-size:13px; }
-  .row { display:flex; gap:18px; flex-wrap:wrap; margin-top:18px; }
-  .card { background:#1f2937; border:1px solid #374151; border-radius:12px; padding:18px; flex:1; min-width:320px; }
-  .card h2 { font-size:16px; margin-bottom:12px; }
-  label { display:block; font-size:13px; color:#9ca3af; margin:10px 0 4px; }
+         background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#fdf2f8 100%);
+         color:#1e293b; min-height:100vh; padding:24px; }
+  .wrap { max-width:1180px; margin:0 auto; }
+  h1 { font-size:26px; font-weight:700; letter-spacing:-0.5px; }
+  .sub { color:#64748b; font-size:13px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .pill { display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:#eef2ff; color:#4338ca; margin-left:4px; font-weight:600; }
+  .pill.show { background:#ede9fe; color:#6d28d9; }
+  .card { background:#fff; border:1px solid #eef1f6; border-radius:18px; box-shadow:0 12px 34px rgba(15,23,42,0.07); padding:22px; }
+  .card h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
+  label { display:block; font-size:13px; color:#64748b; margin:12px 0 5px; font-weight:500; }
   select,input[type=text],input[type=number],input[type=file] {
-    width:100%; padding:9px; background:#111827; border:1px solid #374151; border-radius:7px; color:#e5e7eb; font-size:14px; }
-  .btn { padding:9px 14px; border:none; border-radius:7px; font-size:14px; font-weight:600; cursor:pointer; margin-top:10px; }
-  .btn-primary { background:#6366f1; color:#fff; } .btn-primary:hover { background:#4f46e5; }
-  .btn-go { background:#16a34a; color:#fff; } .btn-go:hover { background:#15803d; }
-  .btn-secondary { background:#374151; color:#e5e7eb; }
-  .btn-danger { background:#dc2626; color:#fff; }
-  .btn-row { display:flex; gap:8px; } .btn-row .btn { flex:1; }
-  .layouts { display:flex; gap:6px; flex-wrap:wrap; }
-  .lay { padding:6px 11px; background:#111827; border:1px solid #374151; border-radius:7px; cursor:pointer; font-size:13px; }
-  .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; }
-  .grid { display:grid; gap:4px; margin-top:12px; background:#000; padding:4px; border-radius:8px; }
-  .panel { background:#0b1220; border:1px solid #1f2937; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
-           font-size:12px; color:#9ca3af; cursor:pointer; position:relative; }
+    width:100%; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; color:#1e293b; font-size:14px;
+    transition:border-color .15s, box-shadow .15s; }
+  select:focus,input:focus { outline:none; border-color:#a5b4fc; box-shadow:0 0 0 4px rgba(165,180,252,0.25); }
+  .btn { padding:11px 16px; border:none; border-radius:14px; font-size:14px; font-weight:600; cursor:pointer; margin-top:12px;
+         transition:transform .12s, box-shadow .12s, background .15s; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn-primary { background:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.35); }
+  .btn-primary:hover { background:#4f46e5; box-shadow:0 10px 22px rgba(99,102,241,0.45); }
+  .btn-go { background:#22c55e; color:#fff; box-shadow:0 8px 18px rgba(34,197,94,0.35); }
+  .btn-go:hover { background:#16a34a; }
+  .btn-secondary { background:#f1f5f9; color:#334155; box-shadow:0 3px 8px rgba(15,23,42,0.06); }
+  .btn-secondary:hover { background:#e2e8f0; }
+  .btn-danger { background:#ef4444; color:#fff; box-shadow:0 8px 18px rgba(239,68,68,0.30); }
+  .btn-danger:hover { background:#dc2626; }
+  .btn-row { display:flex; gap:10px; } .btn-row .btn { flex:1; }
+  .layouts { display:flex; gap:8px; flex-wrap:wrap; }
+  .lay { padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600;
+         box-shadow:0 2px 6px rgba(15,23,42,0.05); }
+  .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; box-shadow:0 6px 14px rgba(99,102,241,0.35); }
+  .grid { display:grid; gap:6px; margin-top:14px; background:#eef2f7; padding:6px; border-radius:14px; }
+  .panel { background:#fff; border:1px solid #e2e8f0; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
+           font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; }
   .panel.portrait { aspect-ratio:9/16; }
-  .panel.online { border-color:#16a34a; } .panel.offline { border-color:#b91c1c; }
-  .panel.sel { outline:2px solid #6366f1; }
-  .dot { width:8px; height:8px; border-radius:50%; position:absolute; top:4px; right:4px; background:#6b7280; }
-  .dot.online { background:#16a34a; } .dot.offline { background:#b91c1c; }
-  .pill { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; background:#374151; margin-left:4px; }
-  .pill.show { background:#4338ca; }
-  .target { background:#0b1220; border:1px solid #374151; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:13px; }
-  .target b { color:#a5b4fc; }
-  .item { background:#0b1220; border:1px solid #374151; border-radius:8px; padding:10px 12px; margin-bottom:8px;
+  .panel.online { border-color:#22c55e; } .panel.offline { border-color:#f87171; }
+  .dot { width:9px; height:9px; border-radius:50%; position:absolute; top:6px; right:6px; background:#cbd5e1; }
+  .dot.online { background:#22c55e; } .dot.offline { background:#f87171; }
+  .target { background:#f1f5ff; border:1px solid #e0e7ff; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; color:#3730a3; }
+  .target b { color:#4338ca; }
+  .item { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:12px 14px; margin-bottom:10px;
           display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .item.active { border-color:#6366f1; }
-  .item .nm { font-weight:600; } .item .mt { font-size:11px; color:#9ca3af; }
-  .log { font-family:monospace; font-size:12px; background:#0b1220; border:1px solid #374151; border-radius:7px;
-         padding:10px; margin-top:12px; max-height:120px; overflow-y:auto; white-space:pre-wrap; color:#93c5fd; }
-  .tabs { display:flex; gap:6px; margin-top:14px; flex-wrap:wrap; }
-  .tab { padding:8px 14px; background:#1f2937; border:1px solid #374151; border-radius:8px 8px 0 0; cursor:pointer; font-size:14px; }
-  .tab.active { background:#6366f1; border-color:#6366f1; }
-  .gc { display:grid; grid-template-columns:auto 1fr 80px auto; gap:6px; align-items:center; margin-top:6px; }
-  .gc input { padding:6px; }
-  .tvwrap { margin-top:12px; overflow-x:auto; background:#0b1220; border:1px solid #374151; border-radius:8px; padding:12px; }
-  .tvgrid { display:grid; gap:10px; min-width:min-content; }
+  .item.active { border-color:#a5b4fc; background:#f5f3ff; }
+  .item .nm { font-weight:700; } .item .mt { font-size:11px; color:#64748b; }
+  .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px;
+         padding:12px; margin-top:14px; max-height:130px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
+  .tabs { display:flex; gap:8px; margin:18px 0; flex-wrap:wrap; }
+  .tab { padding:9px 18px; background:#fff; border:1px solid #e9edf3; border-radius:999px; cursor:pointer; font-size:14px; font-weight:600;
+         color:#475569; box-shadow:0 2px 8px rgba(15,23,42,0.05); }
+  .tab.active { background:#6366f1; border-color:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.35); }
+  .gc { display:grid; grid-template-columns:auto 1fr 84px auto; gap:8px; align-items:center; margin-top:8px; }
+  .gc input { padding:8px; }
+  .tvwrap { margin-top:12px; overflow-x:auto; background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:14px; }
+  .tvgrid { display:grid; gap:12px; min-width:min-content; }
   .tv { display:flex; flex-direction:column; align-items:center; }
-  .tv-screen { width:100%; aspect-ratio:16/9; background:#000; border:4px solid #0f172a; border-radius:6px;
-               box-shadow:0 0 0 2px #1e293b,0 6px 14px rgba(0,0,0,0.5); overflow:hidden; display:flex; }
+  .tv-screen { width:100%; aspect-ratio:16/9; background:#000; border:5px solid #1e293b; border-radius:8px;
+               box-shadow:0 6px 16px rgba(15,23,42,0.25); overflow:hidden; display:flex; }
   .tv.portrait .tv-screen { aspect-ratio:9/16; }
   .tv-screen img { width:100%; height:100%; object-fit:fill; display:block; }
-  .tv-label { font-size:11px; color:#9ca3af; margin-top:4px; }
-  .tv-stand { width:22%; height:5px; background:#1e293b; border-radius:0 0 3px 3px; }
-  .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:12px; }
-  .libcell { background:#0b1220; border:1px solid #374151; border-radius:8px; padding:6px; text-align:center; }
-  .libcell img { width:100%; height:70px; object-fit:cover; border-radius:4px; background:#000; }
-  .libcell .ln { font-size:11px; margin-top:4px; color:#cbd5e1; }
+  .tv-label { font-size:11px; color:#64748b; margin-top:5px; font-weight:600; }
+  .tv-stand { width:24%; height:6px; background:#cbd5e1; border-radius:0 0 4px 4px; }
+  .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:14px; }
+  .libcell { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:8px; text-align:center; }
+  .libcell img { width:100%; height:76px; object-fit:cover; border-radius:8px; background:#000; }
+  .libcell .ln { font-size:12px; margin-top:6px; color:#334155; font-weight:600; }
+  .showpick { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:14px; padding:14px; }
+  .showpick label { margin-top:0; color:#6d28d9; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🐝 Video Hive Hub</h1>
-  <div class="sub">Show <span id="curShow" class="pill show">—</span> Layout <span id="curLayout" class="pill">—</span>
-    Fit <span id="curFit" class="pill">—</span>
-    <button class="btn btn-secondary" style="margin:0;padding:4px 10px;float:right" onclick="refresh()">⟳ Nodes</button></div>
-
-  <div class="tabs">
-    <div class="tab active" data-tab="run" onclick="tab('run')">▶ Run</div>
-    <div class="tab" data-tab="build" onclick="tab('build')">🛠 Build</div>
-    <div class="tab" data-tab="shows" onclick="tab('shows')">🎬 Shows</div>
-    <div class="tab" data-tab="library" onclick="tab('library')">🖼 Library</div>
-    <div class="tab" data-tab="config" onclick="tab('config')">⚙ Grid</div>
+  <div class="topbar">
+    <h1>🐝 Video Hive Hub</h1>
+    <div>
+      <span class="sub">Show</span><span id="curShow" class="pill show">—</span>
+      <span class="sub" style="margin-left:8px">Wall</span><span id="curLayout" class="pill">—</span>
+      <button class="btn btn-secondary" style="margin:0;padding:7px 12px;margin-left:10px" onclick="refresh()">⟳ Nodes</button>
+    </div>
   </div>
 
-  <div class="row">
-    <!-- WALL (always visible) -->
-    <div class="card" style="flex:1.1">
-      <h2>Wall</h2>
-      <div class="layouts" id="layouts"></div>
-      <label>Fit (how the master maps onto the wall)</label>
-      <select id="fit" onchange="setFit()">
-        <option value="cover">cover — fill wall, crop overflow</option>
-        <option value="contain">contain — whole image, letterbox</option>
-        <option value="stretch">stretch — distort to fill</option>
-      </select>
-      <div class="grid" id="grid"></div>
-      <div class="target" id="authoring"></div>
-    </div>
+  <div class="tabs">
+    <div class="tab" data-tab="wall" onclick="tab('wall')">🧱 Wall</div>
+    <div class="tab active" data-tab="build" onclick="tab('build')">🛠 Build</div>
+    <div class="tab" data-tab="run" onclick="tab('run')">▶ Run</div>
+    <div class="tab" data-tab="shows" onclick="tab('shows')">🎬 Shows</div>
+    <div class="tab" data-tab="library" onclick="tab('library')">🖼 Library</div>
+  </div>
 
-    <!-- RUN -->
-    <div class="card tabpane" data-pane="run">
-      <h2>Cues — <span id="runShow"></span></h2>
-      <div class="sub">Fire sends only a command; media is already on each TV.</div>
-      <div id="cueList" style="margin-top:12px"></div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="control('black')">⬛ Black</button>
-        <button class="btn btn-secondary" onclick="control('stop')">⏸ Stop</button>
-        <button class="btn btn-danger" onclick="control('clear')">✕ Clear</button>
-      </div>
-      <div class="log" id="log">ready.</div>
-    </div>
+  <!-- WALL: define the grid -->
+  <div class="card tabpane" data-pane="wall" style="display:none">
+    <h2>Wall — define the grid</h2>
+    <div class="sub">Choose the layout, how content fits, and which TV sits in each cell.</div>
+    <label>Layout</label>
+    <div class="layouts" id="layouts"></div>
+    <label>Fit (how a master maps onto the wall)</label>
+    <select id="fit" onchange="setFit()">
+      <option value="cover">cover — fill wall, crop overflow</option>
+      <option value="contain">contain — whole image, letterbox</option>
+      <option value="stretch">stretch — distort to fill</option>
+    </select>
+    <div class="grid" id="wallGrid"></div>
+    <div class="target" id="authoring"></div>
+    <label style="margin-top:18px">TV placement — map each cell to a TV's host/port</label>
+    <div id="gridConfig"></div>
+    <button class="btn btn-primary" onclick="saveNodes()">💾 Save TV placement</button>
+  </div>
 
-    <!-- BUILD -->
-    <div class="card tabpane" data-pane="build" style="display:none">
-      <h2>Build a Cue → <span id="buildShow"></span></h2>
-      <label>Cue name / ID</label>
-      <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
-      <label>Mode</label>
-      <select id="buildMode" onchange="onModeChange()">
-        <option value="span">span — one master across the whole grid</option>
-        <option value="mirror">mirror — same image on every panel</option>
-        <option value="solo">solo — one image to the selected panel</option>
-        <option value="compose">compose — mix slices, full images &amp; default per panel</option>
-      </select>
-      <div id="simpleBuild">
-        <label>Master file (image or video)</label>
-        <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
-      </div>
-      <div id="composeEditor" style="display:none">
-        <label>Add source images for this cue (optional — Library &amp; Default always available)</label>
-        <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
-        <div id="composeTray" class="sub" style="margin-top:6px"></div>
-        <div class="sub" style="margin-top:8px">Per panel pick a source + Slice/Full. <b>Slice</b> uses the full-grid geometry, so one image stays aligned across whatever panels share it.</div>
-        <div id="composeGrid" style="margin-top:8px"></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" onclick="updatePreview()">👁 Refresh preview</button>
-        <button class="btn btn-primary" onclick="buildCue()">⤓ Build + Add to show</button>
-      </div>
-      <div id="buildStatus" class="sub" style="margin-top:8px"></div>
-      <label style="margin-top:12px">Live preview — each TV shows what it will display</label>
-      <div class="tvwrap"><div id="tvPreview" class="sub">Pick an image to see the wall build.</div></div>
+  <!-- BUILD -->
+  <div class="card tabpane" data-pane="build">
+    <div class="showpick">
+      <label>Building into show</label>
+      <select id="buildShowSel" onchange="switchShow(this.value)"></select>
     </div>
+    <h2 style="margin-top:16px">Build a cue</h2>
+    <label>Cue name / ID</label>
+    <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
+    <label>Mode</label>
+    <select id="buildMode" onchange="onModeChange()">
+      <option value="span">span — one master across the whole grid</option>
+      <option value="mirror">mirror — same image on every panel</option>
+      <option value="solo">solo — one image to one panel</option>
+      <option value="compose">compose — mix slices, full images &amp; default per panel</option>
+    </select>
+    <div id="simpleBuild">
+      <label>Master file (image or video)</label>
+      <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
+    </div>
+    <div id="soloPick" style="display:none">
+      <label>Target panel</label>
+      <select id="soloTarget" onchange="updatePreview()"></select>
+    </div>
+    <div id="composeEditor" style="display:none">
+      <label>Add source images for this cue (Library &amp; Default always available)</label>
+      <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
+      <div id="composeTray" class="sub" style="margin-top:6px"></div>
+      <div class="sub" style="margin-top:8px">Per panel pick a source + Slice/Full. <b>Slice</b> uses the full-grid geometry, so one image stays aligned across whatever panels share it.</div>
+      <div id="composeGrid" style="margin-top:8px"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="updatePreview()">👁 Refresh preview</button>
+      <button class="btn btn-primary" onclick="buildCue()">⤓ Build + Add to show</button>
+    </div>
+    <div id="buildStatus" class="sub" style="margin-top:8px"></div>
+    <label style="margin-top:14px">Live preview — how each TV will display this cue</label>
+    <div class="tvwrap"><div id="tvPreview" class="sub">Pick an image to see the wall build.</div></div>
+  </div>
 
-    <!-- SHOWS -->
-    <div class="card tabpane" data-pane="shows" style="display:none">
-      <h2>Shows</h2>
-      <div class="sub">A show is a set of cues. Create unlimited shows; open one to work on it.</div>
-      <label>New show name</label>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="newShow" placeholder="e.g. Spring Gala">
-        <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="createShow()">＋ Create</button>
-      </div>
-      <div id="showList" style="margin-top:14px"></div>
-      <label>Default image for unassigned panels (this show)</label>
-      <select id="defaultImg" onchange="setDefaultImage()"></select>
-      <button class="btn btn-go" onclick="distributeShow()">⤓ Distribute whole show to TVs</button>
-      <div class="sub" style="margin-top:6px">Pushes every cue's pre-built pieces to each TV (run before the show, or after a reboot/TV swap).</div>
+  <!-- RUN -->
+  <div class="card tabpane" data-pane="run" style="display:none">
+    <h2>Cues — <span id="runShow"></span></h2>
+    <div class="sub">Fire sends only a command; media is already on each TV.</div>
+    <div id="cueList" style="margin-top:14px"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="control('black')">⬛ Black</button>
+      <button class="btn btn-secondary" onclick="control('stop')">⏸ Stop</button>
+      <button class="btn btn-danger" onclick="control('clear')">✕ Clear</button>
     </div>
+    <div class="log" id="log">ready.</div>
+  </div>
 
-    <!-- LIBRARY -->
-    <div class="card tabpane" data-pane="library" style="display:none">
-      <h2>Image Library</h2>
-      <div class="sub">Reusable images stored on the hub. <b>Black</b> is built in and is the default fill.</div>
-      <label>Upload library image</label>
-      <div style="display:flex;gap:8px">
-        <input type="file" id="libFile" accept="image/*">
-        <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="uploadLibrary()">＋ Add</button>
-      </div>
-      <div class="libgrid" id="libGrid"></div>
+  <!-- SHOWS -->
+  <div class="card tabpane" data-pane="shows" style="display:none">
+    <h2>Shows</h2>
+    <div class="sub">A show is a set of cues. Create unlimited shows; open one to work on it.</div>
+    <label>New show name</label>
+    <div style="display:flex;gap:10px">
+      <input type="text" id="newShow" placeholder="e.g. Spring Gala">
+      <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="createShow()">＋ Create</button>
     </div>
+    <div id="showList" style="margin-top:16px"></div>
+    <label>Default image for unassigned panels (this show)</label>
+    <select id="defaultImg" onchange="setDefaultImage()"></select>
+    <button class="btn btn-go" onclick="distributeShow()">⤓ Distribute whole show to TVs</button>
+    <div class="sub" style="margin-top:6px">Pushes every cue's pre-built pieces to each TV (run before the show, or after a reboot/TV swap).</div>
+  </div>
 
-    <!-- GRID CONFIG -->
-    <div class="card tabpane" data-pane="config" style="display:none">
-      <h2>Grid Configuration</h2>
-      <div class="sub">Map each grid cell to a TV's IP/port. Identify flashes the cell label on that TV.</div>
-      <div id="gridConfig"></div>
-      <button class="btn btn-primary" onclick="saveNodes()">💾 Save mapping</button>
+  <!-- LIBRARY -->
+  <div class="card tabpane" data-pane="library" style="display:none">
+    <h2>Image Library</h2>
+    <div class="sub">Reusable images stored on the hub. <b>Black</b> is built in and is the default fill.</div>
+    <label>Upload library image</label>
+    <div style="display:flex;gap:10px">
+      <input type="file" id="libFile" accept="image/*">
+      <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="uploadLibrary()">＋ Add</button>
     </div>
+    <div class="libgrid" id="libGrid"></div>
   </div>
 </div>
 
 <script>
-let S=null, selected=null, nodeStatus={}, LIB={}, LIBDEFAULT='black';
+let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black';
 
 function log(m){ const e=document.getElementById('log'); e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
 function tab(name){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
   document.querySelectorAll('.tabpane').forEach(p=>p.style.display=p.dataset.pane===name?'block':'none');
-  if(name==='config') renderGridConfig();
-  if(name==='shows') loadShows();
-  if(name==='library') loadLibrary();
+  if(name==='wall'){ renderGrid(); renderGridConfig(); }
+  if(name==='build'){ loadShowSelector(); }
+  if(name==='run'){ loadCues(); }
+  if(name==='shows'){ loadShows(); }
+  if(name==='library'){ loadLibrary(); }
 }
 
 async function loadState(){
   S=await (await fetch('/api/state')).json();
   document.getElementById('curShow').textContent=S.active_show.name;
   document.getElementById('runShow').textContent=S.active_show.name;
-  document.getElementById('buildShow').textContent=S.active_show.name;
   document.getElementById('curLayout').textContent=S.layout;
-  document.getElementById('curFit').textContent=S.fit;
   document.getElementById('fit').value=S.fit;
   document.getElementById('layouts').innerHTML=S.layouts.map(l=>
     `<div class="lay ${l===S.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
@@ -202,24 +222,28 @@ async function loadState(){
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${a.physical_canvas.w}×${a.physical_canvas.h}px</b> (${a.physical_canvas.aspect}, bezel-comp)`+
     `<br><span class="sub">or ${a.active_mosaic.w}×${a.active_mosaic.h}px (${a.active_mosaic.aspect}, no bezel comp)</span>`;
+  // solo target options
+  let opts='';
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
+  document.getElementById('soloTarget').innerHTML=opts;
   renderGrid();
 }
 function renderGrid(){
-  const g=document.getElementById('grid'); g.style.gridTemplateColumns=`repeat(${S.cols},1fr)`;
+  const g=document.getElementById('wallGrid'); if(!g||!S) return;
+  g.style.gridTemplateColumns=`repeat(${S.cols},1fr)`;
   const portrait=S.orientation==='portrait'; let h='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`, st=nodeStatus[key];
     const cls=st===undefined?'':(st?'online':'offline');
-    const sel=(selected&&selected[0]===r&&selected[1]===c)?'sel':'';
-    h+=`<div class="panel ${portrait?'portrait':''} ${cls} ${sel}" onclick="selectPanel(${r},${c})">${key}<span class="dot ${cls}"></span></div>`;
+    h+=`<div class="panel ${portrait?'portrait':''} ${cls}" title="${key}">${key}<span class="dot ${cls}"></span></div>`;
   }
   g.innerHTML=h;
 }
-function selectPanel(r,c){ selected=[r,c]; renderGrid();
-  const m=document.getElementById('buildMode'); if(m&&m.value==='solo') updatePreview(); }
 async function setLayout(l){
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l})});
-  selected=null; await loadState(); await refresh(); log('layout -> '+l);
+  await loadState(); await refresh(); renderGridConfig();
+  if(document.getElementById('buildMode').value==='compose') renderComposeGrid();
+  log('layout -> '+l);
 }
 async function setFit(){
   const fit=document.getElementById('fit').value;
@@ -231,25 +255,31 @@ async function refresh(){
   nodeStatus={}; for(const k in r) nodeStatus[k]=r[k].online; renderGrid();
 }
 
+// ---- SHOW SELECTOR (Build) ----
+async function loadShowSelector(){
+  const d=await (await fetch('/api/shows')).json();
+  const sel=document.getElementById('buildShowSel');
+  sel.innerHTML=d.shows.map(s=>`<option value="${s.id}" ${s.id===d.active?'selected':''}>${s.name} (${s.cues} cues)</option>`).join('');
+}
+async function switchShow(id){
+  await fetch('/api/show/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  await loadState(); log('building into '+id);
+}
+
 // ---- LIBRARY ----
 async function loadLibrary(){
   const d=await (await fetch('/api/library')).json();
   LIB=d.images; LIBDEFAULT=d.default;
   const grid=document.getElementById('libGrid');
-  grid.innerHTML=Object.entries(LIB).map(([id,m])=>`
-    <div class="libcell">
-      <img src="/api/library/${id}/thumb">
-      <div class="ln">${m.name}</div>
-      ${m.builtin?'<div class="mt sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:6px;padding:4px 8px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
+  if(grid) grid.innerHTML=Object.entries(LIB).map(([id,m])=>`
+    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}</div>
+      ${m.builtin?'<div class="mt sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
     </div>`).join('');
-  // default-image picker
   const sel=document.getElementById('defaultImg');
-  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>
-    `<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
+  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
 }
 async function uploadLibrary(){
-  const f=document.getElementById('libFile').files[0];
-  if(!f){ alert('Choose an image'); return; }
+  const f=document.getElementById('libFile').files[0]; if(!f){ alert('Choose an image'); return; }
   const fd=new FormData(); fd.append('file',f); fd.append('name',f.name.replace(/\.[^.]+$/,''));
   await fetch('/api/library',{method:'POST',body:fd});
   document.getElementById('libFile').value=''; log('library image added'); loadLibrary();
@@ -267,25 +297,25 @@ async function loadShows(){
   document.getElementById('showList').innerHTML=d.shows.map(s=>`
     <div class="item ${s.id===d.active?'active':''}">
       <div><div class="nm">${s.name}</div><div class="mt">${s.cues} cue(s)${s.id===d.active?' · open':''}</div></div>
-      <div style="display:flex;gap:6px">
-        ${s.id===d.active?'':`<button class="btn btn-primary" style="margin:0;padding:6px 10px" onclick="openShow('${s.id}')">Open</button>`}
-        <button class="btn btn-danger" style="margin:0;padding:6px 10px" onclick="delShow('${s.id}')">✕</button>
+      <div style="display:flex;gap:8px">
+        ${s.id===d.active?'':`<button class="btn btn-primary" style="margin:0;padding:7px 12px" onclick="openShow('${s.id}')">Open</button>`}
+        <button class="btn btn-danger" style="margin:0;padding:7px 12px" onclick="delShow('${s.id}')">✕</button>
       </div></div>`).join('') || '<div class="sub">No shows yet.</div>';
 }
 async function createShow(){
   const name=document.getElementById('newShow').value.trim(); if(!name){ alert('Name the show'); return; }
   await fetch('/api/shows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  document.getElementById('newShow').value=''; log('created + opened show '+name);
-  await loadState(); loadShows(); loadCues();
+  document.getElementById('newShow').value=''; log('created + opened '+name);
+  await loadState(); loadShows();
 }
 async function openShow(id){
   await fetch('/api/show/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  log('opened show '+id); await loadState(); loadShows(); loadCues();
+  log('opened show '+id); await loadState(); loadShows();
 }
 async function delShow(id){
   if(!confirm('Delete show '+id+' and its cues?')) return;
   await fetch('/api/show/'+id,{method:'DELETE'}); log('deleted show '+id);
-  await loadState(); loadShows(); loadCues();
+  await loadState(); loadShows();
 }
 async function setDefaultImage(){
   const v=document.getElementById('defaultImg').value;
@@ -307,10 +337,11 @@ function sourceOptions(){
   return o;
 }
 function onModeChange(){
-  const compose=document.getElementById('buildMode').value==='compose';
-  document.getElementById('composeEditor').style.display=compose?'block':'none';
-  document.getElementById('simpleBuild').style.display=compose?'none':'block';
-  if(compose) renderComposeGrid();
+  const mode=document.getElementById('buildMode').value;
+  document.getElementById('composeEditor').style.display=mode==='compose'?'block':'none';
+  document.getElementById('simpleBuild').style.display=mode==='compose'?'none':'block';
+  document.getElementById('soloPick').style.display=mode==='solo'?'block':'none';
+  if(mode==='compose') renderComposeGrid();
   updatePreview();
 }
 function onComposeFiles(){
@@ -323,10 +354,10 @@ function renderComposeGrid(){
   const opts=sourceOptions(); const portrait=S.orientation==='portrait'; let cells='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`;
-    cells+=`<div class="panel ${portrait?'portrait':''}" style="flex-direction:column;gap:2px;cursor:default;padding:4px">
+    cells+=`<div class="panel ${portrait?'portrait':''}" style="flex-direction:column;gap:3px;padding:5px">
       <div style="font-size:10px">${key}</div>
-      <select id="cs-${key}" style="font-size:11px;padding:2px" onchange="cellChange('${key}')">${opts}</select>
-      <select id="cr-${key}" style="font-size:11px;padding:2px;visibility:hidden" onchange="updatePreview()">
+      <select id="cs-${key}" style="font-size:11px;padding:3px" onchange="cellChange('${key}')">${opts}</select>
+      <select id="cr-${key}" style="font-size:11px;padding:3px;visibility:hidden" onchange="updatePreview()">
         <option value="full">Full</option><option value="slice">Slice</option></select></div>`;
   }
   document.getElementById('composeGrid').innerHTML=`<div class="grid" style="grid-template-columns:repeat(${S.cols},1fr)">${cells}</div>`;
@@ -366,15 +397,13 @@ function renderTVGrid(data){
 async function updatePreview(){
   const mode=document.getElementById('buildMode').value, el=document.getElementById('tvPreview');
   if(mode==='compose'){
-    const fd=composeForm();
-    const r=await (await fetch('/api/tiles_compose',{method:'POST',body:fd})).json(); renderTVGrid(r); return;
+    const r=await (await fetch('/api/tiles_compose',{method:'POST',body:composeForm()})).json(); renderTVGrid(r); return;
   }
   const f=document.getElementById('buildFile').files[0];
   if(!f){ el.innerHTML='<span class="sub">Pick an image to see the wall build.</span>'; return; }
   if(f.type.startsWith('video')){ el.innerHTML='<span class="sub">Live preview is for images. Video tiles are generated on Build.</span>'; return; }
-  if(mode==='solo'&&!selected){ el.innerHTML='<span class="sub">Click a panel in the Wall grid to target for solo.</span>'; return; }
   const fd=new FormData(); fd.append('file',f); fd.append('mode',mode);
-  if(mode==='solo') fd.append('target',selected.join(','));
+  if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
   const r=await (await fetch('/api/tiles',{method:'POST',body:fd})).json(); renderTVGrid(r);
 }
 function buildForm(){
@@ -384,10 +413,7 @@ function buildForm(){
   fd.append('name',document.getElementById('cueName').value||f.name);
   fd.append('cue_id',document.getElementById('cueName').value||f.name);
   fd.append('mode',document.getElementById('buildMode').value);
-  if(document.getElementById('buildMode').value==='solo'){
-    if(!selected){ alert('Click a panel for solo'); return null; }
-    fd.append('target',selected.join(','));
-  }
+  if(document.getElementById('buildMode').value==='solo') fd.append('target',document.getElementById('soloTarget').value);
   return {fd,file:f};
 }
 async function buildCue(){
@@ -396,7 +422,7 @@ async function buildCue(){
     document.getElementById('buildStatus').textContent='building…';
     const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:composeForm()})).json();
     document.getElementById('buildStatus').textContent='added compose cue: '+r.cue_id;
-    log('built compose cue '+r.cue_id); loadCues(); return;
+    log('built compose cue '+r.cue_id); loadShowSelector(); return;
   }
   const b=buildForm(); if(!b) return;
   document.getElementById('buildStatus').textContent='building…';
@@ -405,26 +431,25 @@ async function buildCue(){
   } else {
     const r=await (await fetch('/api/cue/build',{method:'POST',body:b.fd})).json();
     document.getElementById('buildStatus').textContent='added cue: '+r.cue_id;
-    log('built image cue '+r.cue_id); loadCues();
+    log('built image cue '+r.cue_id); loadShowSelector();
   }
 }
 async function pollBuild(job){
   const s=await (await fetch('/api/cue/build_video/status/'+job)).json();
   document.getElementById('buildStatus').textContent=`video ${s.state} ${s.total?`(${s.done}/${s.total} tiles)`:''} ${s.error||''}`;
   if(s.state!=='ready'&&s.state!=='error') setTimeout(()=>pollBuild(job),700);
-  else { log('video cue '+s.state); loadCues(); }
+  else { log('video cue '+s.state); loadShowSelector(); }
 }
 
 // ---- RUN ----
 async function loadCues(){
-  const show=await (await fetch('/api/show')).json();   // cues array, in show order
-  const cues=show.cues||[];
-  const el=document.getElementById('cueList');
+  const show=await (await fetch('/api/show')).json();
+  const cues=show.cues||[]; const el=document.getElementById('cueList');
   if(!cues.length){ el.innerHTML='<div class="sub">No cues in this show. Use the Build tab.</div>'; return; }
   el.innerHTML=cues.map((c,i)=>{ const id=c.id;
     return `<div class="item"><div><div class="nm">${i+1}. ${c.name}</div>
       <div class="mt">${c.type} · ${c.mode} · ${c.panels.length} panel(s)</div></div>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:8px">
         ${c.type==='video'?`<label class="mt"><input type="checkbox" id="loop-${id}"> loop</label>`:''}
         <button class="btn btn-go" style="margin:0" onclick="fire('${id}')">▶ Fire</button>
         <button class="btn btn-danger" style="margin:0" onclick="delCue('${id}')">✕</button>
@@ -443,15 +468,16 @@ async function delCue(id){
 }
 async function control(a){ await fetch('/api/control/'+a,{method:'POST'}); log('control: '+a); }
 
-// ---- GRID CONFIG ----
+// ---- GRID CONFIG (in Wall tab) ----
 function renderGridConfig(){
+  if(!S) return;
   let h='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`, n=S.nodes[key]||{host:'',port:''};
     h+=`<div class="gc"><span class="pill">${key}</span>
       <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP">
       <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port">
-      <button class="btn btn-secondary" style="margin:0;padding:6px 10px" onclick="identify('${key}')">Identify</button></div>`;
+      <button class="btn btn-secondary" style="margin:0;padding:8px 12px" onclick="identify('${key}')">Identify</button></div>`;
   }
   document.getElementById('gridConfig').innerHTML=h;
 }
@@ -464,14 +490,14 @@ async function saveNodes(){
     if(host&&port) nodes[key]={host,port};
   }
   await fetch('/api/nodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes})});
-  log('saved grid mapping'); await loadState(); await refresh();
+  log('saved TV placement'); await loadState(); await refresh();
 }
 async function identify(key){
   await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
   log('identify '+key);
 }
 
-loadState().then(()=>{ refresh(); loadCues(); loadLibrary(); });
+loadState().then(()=>{ refresh(); loadLibrary(); loadShowSelector(); });
 setInterval(refresh,15000);
 </script>
 </body>
