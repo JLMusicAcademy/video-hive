@@ -72,6 +72,9 @@
   .cuerow[draggable=true] { cursor:grab; }
   .lay.disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
   .locknote { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; }
+  .wsdrop { border:2px dashed #c7d2fe; border-radius:14px; padding:18px; text-align:center; color:#64748b; margin-top:14px; font-size:14px; font-weight:600; }
+  .tabpane.filedrag { outline:3px dashed #6366f1; outline-offset:-6px; background:#f5f7ff; }
+  .tabpane.filedrag .wsdrop { border-color:#6366f1; color:#4338ca; background:#eef2ff; }
   .cuerow .nm { font-weight:600; }
   .cuerow .mt { font-size:12px; color:#64748b; }
   .ptr { color:#6366f1; font-weight:800; }
@@ -146,7 +149,7 @@
 
 <div class="content">
   <!-- WORKSPACE -->
-  <div class="card tabpane" data-pane="workspace">
+  <div class="card tabpane" data-pane="workspace" id="wsPane">
     <div class="wsbar">
       <select id="wsSel" onchange="switchWorkspace(this.value)"></select>
       <button class="btn btn-secondary" onclick="newWorkspace()">＋ New</button>
@@ -181,7 +184,8 @@
       </div>
       <div id="cueRows"></div>
     </div>
-    <button class="btn btn-secondary" id="addCueBtn" style="margin-top:12px" onclick="newCue()">＋ Add cue</button>
+    <div class="wsdrop" id="wsDrop">⬇️ Drag image or video files anywhere here — each one becomes a new cue</div>
+    <button class="btn btn-secondary" id="addCueBtn" style="margin-top:12px" onclick="newCue()">＋ Add cue manually</button>
 
     <!-- CUE EDITOR (edit mode) -->
     <div class="editor" id="cueEditor" style="display:none">
@@ -425,33 +429,37 @@ function cueDragStart(e,id){
   const row=document.querySelector(`.cuerow[data-id="${id}"]`); if(row) setTimeout(()=>row.classList.add('dragging'),0);
 }
 function clearDropMarks(){ document.querySelectorAll('.cuerow.drop-before,.cuerow.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after')); }
+const isFileDrag=e=>[...((e.dataTransfer&&e.dataTransfer.types)||[])].includes('Files');
 function setupCueDnD(){
   const wrap=document.getElementById('cueListWrap');
+  const pane=document.getElementById('wsPane');
+
+  // Reorder existing cues (internal drag of a row).
   wrap.addEventListener('dragover',e=>{
-    const files=[...e.dataTransfer.types].includes('Files');
-    if(!dragCueId && !files) return;
-    e.preventDefault(); wrap.classList.add('dragover'); clearDropMarks();
+    if(!dragCueId) return;                       // file drags handled by the pane
+    e.preventDefault(); clearDropMarks();
     const row=e.target.closest('.cuerow');
-    if(row && dragCueId && row.dataset.id!==dragCueId){
+    if(row && row.dataset.id!==dragCueId){
       const rect=row.getBoundingClientRect();
       const after=(e.clientY-rect.top) > rect.height/2;
-      row.classList.add(after?'drop-after':'drop-before');
-      row.dataset.dropAfter=after?'1':'0';
+      row.classList.add(after?'drop-after':'drop-before'); row.dataset.dropAfter=after?'1':'0';
     }
   });
-  wrap.addEventListener('dragleave',e=>{ if(e.target===wrap){ wrap.classList.remove('dragover'); clearDropMarks(); } });
   wrap.addEventListener('drop',async e=>{
-    e.preventDefault(); wrap.classList.remove('dragover'); clearDropMarks();
-    if(e.dataTransfer.files.length){ dragCueId=null; await createCuesFromFiles(e.dataTransfer.files); return; }
-    if(!dragCueId) return;
+    if(!dragCueId) return;                        // let file drops bubble to the pane
+    e.preventDefault(); clearDropMarks();
     const row=e.target.closest('.cuerow'); let beforeId=null;
     if(row && row.dataset.id!==dragCueId){
       const ids=WS.cues.map(c=>c.id);
-      if(row.dataset.dropAfter==='1'){ beforeId=ids[ids.indexOf(row.dataset.id)+1]||null; }
-      else beforeId=row.dataset.id;
+      beforeId = row.dataset.dropAfter==='1' ? (ids[ids.indexOf(row.dataset.id)+1]||null) : row.dataset.id;
     }
     const moved=dragCueId; dragCueId=null; await reorderCue(moved,beforeId);
   });
+
+  // Drop media files ANYWHERE on the workspace -> one new cue per file.
+  pane.addEventListener('dragover',e=>{ if(!isFileDrag(e)) return; e.preventDefault(); pane.classList.add('filedrag'); });
+  pane.addEventListener('dragleave',e=>{ if(!pane.contains(e.relatedTarget)) pane.classList.remove('filedrag'); });
+  pane.addEventListener('drop',e=>{ if(!isFileDrag(e)) return; e.preventDefault(); pane.classList.remove('filedrag'); createCuesFromFiles(e.dataTransfer.files); });
 }
 document.addEventListener('dragend',()=>{ dragCueId=null; clearDropMarks();
   document.querySelectorAll('.cuerow.dragging').forEach(x=>x.classList.remove('dragging'));
