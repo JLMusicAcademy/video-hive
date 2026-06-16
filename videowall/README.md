@@ -73,18 +73,23 @@ the editor is hidden and the cue list is locked for walking the show live.
 
 ### Per-workspace walls
 
-The wall is **per workspace**, not global — so one workspace can drive a single
-`1x1` display while another drives the full `4x4` wall. New workspaces inherit
-the **system default** wall (layout, fit, bezel handling, TV placement); edit it
-on the **Wall** tab to override for the open workspace, then **Reset to system
-default** or **Save as system default** as needed. (Panel physical dimensions
-live in the config and are shared.)
+There are two levels:
 
-**The grid locks once a workspace has cues** — they're already sliced for that
-grid, so layout/fit/bezel can't change. To re-grid, use **Save As…** (top of the
-Workspace page): it copies the workspace's settings and grid into a new, empty
-(unlocked) workspace where you set the grid and build cues fresh. TV placement
-(host/port routing) stays editable even when locked.
+- **System default grid** — set once on the **Wall** tab (the "System default"
+  toggle). This is the standard grid for the space (e.g. a `1x5` vertical wall):
+  layout, fit, bezel handling, TV placement. Always editable.
+- **Per-workspace override** — a workspace follows the system default unless it
+  sets its own. On the **Workspace** page, *Customize grid for this workspace*
+  (or the Wall tab's "This workspace" toggle) defines an override just for that
+  workspace — so one workspace can drive a single `1x1` display while another
+  uses the full `1x5`. *Use system default* drops the override again.
+
+A workspace's grid is **snapshotted and locked** the moment it gets its first
+cue (the cues are sliced for that grid), so later changes to the system default
+never break it — and that workspace's grid can't change after slicing. To
+re-grid an existing show, use **Save As…** (Workspace page) for an empty copy,
+set its grid, then build cues. (Panel physical dimensions live in the config and
+are shared.)
 
 ## Authoring target (so you never do the math)
 
