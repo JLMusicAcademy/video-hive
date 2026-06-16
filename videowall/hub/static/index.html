@@ -135,6 +135,11 @@
       <option value="contain">contain — whole image, letterbox</option>
       <option value="stretch">stretch — distort to fill</option>
     </select>
+    <label>Bezel handling (how seams are treated)</label>
+    <select id="bezel" onchange="setBezel()">
+      <option value="1">Compensate — continuous image, hides slivers behind bezels (best for photo/video)</option>
+      <option value="0">Show everything — no content lost, lines jump at seams (best for text/graphics)</option>
+    </select>
     <div class="grid" id="wallGrid"></div>
     <div class="target" id="authoring"></div>
     <label style="margin-top:18px">TV placement — map each cell to a TV's host/port</label>
@@ -251,12 +256,14 @@ async function loadState(){
   document.getElementById('runShow').textContent=S.active_show.name;
   document.getElementById('curLayout').textContent=S.layout;
   document.getElementById('fit').value=S.fit;
+  document.getElementById('bezel').value=S.bezel_comp?'1':'0';
   document.getElementById('layouts').innerHTML=S.layouts.map(l=>
     `<div class="lay ${l===S.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
-  const a=S.authoring;
+  const a=S.authoring, comp=S.bezel_comp;
+  const main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
   document.getElementById('authoring').innerHTML=
-    `📐 Author your master at <b>${a.physical_canvas.w}×${a.physical_canvas.h}px</b> (${a.physical_canvas.aspect}, bezel-comp)`+
-    `<br><span class="sub">or ${a.active_mosaic.w}×${a.active_mosaic.h}px (${a.active_mosaic.aspect}, no bezel comp)</span>`;
+    `📐 Author your master at <b>${main.w}×${main.h}px</b> (${main.aspect}, ${comp?'bezel-compensated':'no bezel comp'})`+
+    `<br><span class="sub">other mode: ${alt.w}×${alt.h}px (${alt.aspect})</span>`;
   let opts='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;
@@ -284,6 +291,11 @@ async function setFit(){
   const fit=document.getElementById('fit').value;
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,fit})});
   await loadState(); log('fit -> '+fit);
+}
+async function setBezel(){
+  const bezel_comp=document.getElementById('bezel').value==='1';
+  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,bezel_comp})});
+  await loadState(); log('bezel compensation -> '+(bezel_comp?'on':'off'));
 }
 async function refresh(){
   const r=await (await fetch('/api/nodes/status')).json();

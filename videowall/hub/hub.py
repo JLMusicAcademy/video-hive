@@ -88,7 +88,9 @@ def current_panel():
 
 def current_tiles():
     panel, layout = current_panel()
-    tiles, cw, ch = geometry.build_tiles(layout["rows"], layout["cols"], panel)
+    bezel_comp = STATE["config"].get("bezel_comp", True)
+    tiles, cw, ch = geometry.build_tiles(layout["rows"], layout["cols"], panel,
+                                         bezel_comp)
     return tiles, cw, ch, panel, layout
 
 
@@ -409,6 +411,7 @@ def api_state():
     show = active_show()
     return jsonify({
         "layout": cfg["layout"], "fit": cfg.get("fit", "cover"),
+        "bezel_comp": cfg.get("bezel_comp", True),
         "layouts": list(geometry.LAYOUTS.keys()),
         "rows": layout["rows"], "cols": layout["cols"],
         "orientation": layout["orientation"], "nodes": cfg["nodes"],
@@ -429,6 +432,8 @@ def api_layout():
     STATE["config"]["layout"] = name
     if "fit" in data:
         STATE["config"]["fit"] = data["fit"]
+    if "bezel_comp" in data:
+        STATE["config"]["bezel_comp"] = bool(data["bezel_comp"])
     save_config()
     return jsonify({"ok": True})
 

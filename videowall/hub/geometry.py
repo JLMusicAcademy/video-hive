@@ -71,22 +71,33 @@ LAYOUTS = {
 }
 
 
-def build_tiles(rows, cols, panel: PanelSpec):
+def build_tiles(rows, cols, panel: PanelSpec, bezel_comp=True):
     """Return (tiles, canvas_w, canvas_h) for a rows x cols grid of `panel`.
 
-    canvas_w/canvas_h are the full physical extent of the wall (chassis butted
-    edge to edge), in the same units as the panel spec.
+    canvas_w/canvas_h are the full physical extent of the wall, in the same
+    units as the panel spec.
+
+    bezel_comp=True  : the master is treated as continuous across the bezel
+                       gaps; the strips behind the bezels are dropped, so lines
+                       stay straight but a sliver of content is hidden.
+    bezel_comp=False : panels are butted active-edge to active-edge with no gap,
+                       so nothing is lost (all text shows) but straight lines
+                       jump by the bezel width at each seam.
     """
-    canvas_w = cols * panel.outer_w
-    canvas_h = rows * panel.outer_h
-    bezel_x = (panel.outer_w - panel.active_w) / 2.0
-    bezel_y = (panel.outer_h - panel.active_h) / 2.0
+    # With compensation we work in the chassis (outer) grid and skip the bezel
+    # gaps; without it the cell is exactly the active area (gap = 0).
+    cell_w = panel.outer_w if bezel_comp else panel.active_w
+    cell_h = panel.outer_h if bezel_comp else panel.active_h
+    canvas_w = cols * cell_w
+    canvas_h = rows * cell_h
+    bezel_x = (cell_w - panel.active_w) / 2.0
+    bezel_y = (cell_h - panel.active_h) / 2.0
 
     tiles = []
     for r in range(rows):
         for c in range(cols):
-            ax0 = c * panel.outer_w + bezel_x
-            ay0 = r * panel.outer_h + bezel_y
+            ax0 = c * cell_w + bezel_x
+            ay0 = r * cell_h + bezel_y
             ax1 = ax0 + panel.active_w
             ay1 = ay0 + panel.active_h
             tiles.append(Tile(

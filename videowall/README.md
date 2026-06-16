@@ -100,12 +100,24 @@ already local, the only realtime work is a local `loadfile` — sub-millisecond.
 **Requirement:** keep node clocks tight with NTP on the LAN (PTP for the
 tightest sync), and use wired Gigabit.
 
-## Bezel compensation & rotation
+## Bezel handling & rotation
 
-- **Bezel comp** is automatic: the hub builds the wall canvas including the dead
-  space behind the bezels, then crops only each panel's *active* area. Set each
-  panel's `active_*` (lit glass) and `outer_*` (chassis incl. bezel) in the
-  config.
+Set on the **Wall** tab (persisted in the config as `bezel_comp`). Set each
+panel's `active_*` (lit glass) and `outer_*` (chassis incl. bezel) in the config
+so the hub knows the real geometry.
+
+- **Compensate** (`bezel_comp: true`, default) — the hub treats the master as
+  continuous *across* the bezel gaps and crops only each panel's active area, so
+  straight lines stay straight across seams. The slivers behind the bezels are
+  hidden (≈ a few % of content). Best for **photo / video**.
+- **Show everything** (`bezel_comp: false`) — panels are butted active-edge to
+  active-edge with no gap, so **nothing is lost** (all text shows); the trade-off
+  is that straight lines step by the bezel width at each seam. Best for
+  **text / graphics**.
+
+The authoring-target readout updates to the right master size for the chosen
+mode (physical canvas with comp on; active mosaic with comp off).
+
 - **Rotation** for portrait-mounted TVs is applied at the node (MPV
   `video-rotate`), so the hub always works in wall-space orientation.
 
