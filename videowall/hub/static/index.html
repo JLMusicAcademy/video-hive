@@ -311,7 +311,7 @@ async function loadState(){
   renderGrid();
 }
 async function wallReset(){
-  if(!confirm('Reset this workspace\\'s wall to the system default?')) return;
+  if(!confirm('Reset this workspace wall to the system default?')) return;
   await fetch('/api/wall/reset',{method:'POST'}); await loadState(); await refresh(); renderGridConfig(); log('wall reset to default');
 }
 async function wallSaveDefault(){
