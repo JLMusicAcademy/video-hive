@@ -212,6 +212,8 @@ Not yet built (candidate next steps):
 
 - **QLab bridge** — OSC listener so a QLab Network cue fires a wall cue.
 - Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
-- Cue drag-reorder; re-edit a compose cue from its saved assignment; audio routing.
-- Separate runtime config from the shipped example so running the hub doesn't
-  mutate `wall.example.json`.
+- Re-edit a compose cue from its saved assignment; audio routing.
+
+The hub treats `config/wall.example.json` as a read-only **template**: on first
+run it copies it to `hub/store/wall.json` (gitignored) and reads/writes the
+runtime config there, so running the hub never modifies tracked files.

@@ -68,10 +68,18 @@ DEFAULT_VIDEO_LEAD = 0.8
 # --------------------------------------------------------------------------- #
 # Wall config
 # --------------------------------------------------------------------------- #
-def load_config(path):
-    with open(path) as f:
-        STATE["config"] = json.load(f)
-    STATE["config_path"] = path
+def load_config(template_path):
+    """Load the wall config from the runtime store (gitignored). On first run,
+    seed it from the given template (e.g. wall.example.json) -- after that the
+    template is never written to, so it stays clean for `git pull`."""
+    STORE.mkdir(parents=True, exist_ok=True)
+    runtime = STORE / "wall.json"
+    if runtime.exists():
+        STATE["config"] = json.loads(runtime.read_text())
+    else:
+        STATE["config"] = json.loads(Path(template_path).read_text())
+        runtime.write_text(json.dumps(STATE["config"], indent=2))
+    STATE["config_path"] = str(runtime)
 
 
 def save_config():
