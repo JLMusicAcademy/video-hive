@@ -756,7 +756,7 @@ def api_cue_build():
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
-    cue_id = slugify(request.form.get("cue_id") or name)
+    cue_id = resolve_cue_id(name)
     mode = request.form.get("mode", "span")
     target = parse_target(request.form.get("target"))
     ws = active_workspace()
@@ -774,7 +774,7 @@ def api_cue_build():
 def api_cue_build_compose():
     assignments = json.loads(request.form.get("assign", "[]"))
     name = request.form.get("name") or "compose"
-    cue_id = slugify(request.form.get("cue_id") or name)
+    cue_id = resolve_cue_id(name)
     ws = active_workspace()
 
     sources = resolve_sources(assignments)
@@ -793,7 +793,7 @@ def api_cue_build_video():
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
-    cue_id = slugify(request.form.get("cue_id") or name)
+    cue_id = resolve_cue_id(name)
     ws = active_workspace()
 
     adir = workspace_asset_dir(ws["id"], cue_id)
@@ -882,6 +882,31 @@ def api_cue_fire():
     res = post_targets(targets, "/show_at",
                        json={"cue_id": nid, "at": show_at, "loop": loop})
     return jsonify({"ok": True, "cue_id": cue_id, "show_at": show_at, "nodes": res})
+
+
+def resolve_cue_id(name):
+    """Reuse an existing cue's id when rebuilding it (so its assets / pushes
+    stay valid); otherwise derive a stable id from the name."""
+    existing = request.form.get("existing_id")
+    if existing and existing in active_workspace()["cues"]:
+        return existing
+    return slugify(request.form.get("cue_id") or name)
+
+
+@app.route("/api/cue/rename", methods=["POST"])
+def api_cue_rename():
+    """Rename a cue's display label (its id and pushed pieces are unchanged)."""
+    data = request.json or {}
+    ws = active_workspace()
+    cue = ws["cues"].get(data.get("cue_id"))
+    if not cue:
+        return jsonify({"error": "unknown cue"}), 404
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "name required"}), 400
+    cue["name"] = name
+    save_workspace(ws)
+    return jsonify({"ok": True, "name": name})
 
 
 @app.route("/api/cue/reorder", methods=["POST"])

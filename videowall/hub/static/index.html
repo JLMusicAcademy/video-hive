@@ -191,7 +191,10 @@
     <div class="editor" id="cueEditor" style="display:none">
       <h2 id="editorTitle">New cue</h2>
       <label>Cue name</label>
-      <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
+        <button class="btn btn-secondary" id="renameCueBtn" style="margin:0;display:none;white-space:nowrap" onclick="renameCue()">✎ Rename</button>
+      </div>
       <label>Mode</label>
       <select id="buildMode" onchange="onModeChange()">
         <option value="span">span — one master across the whole grid</option>
@@ -500,10 +503,18 @@ function newCue(){
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
   document.getElementById('cueTv').innerHTML='<span class="sub">Pick an image to preview, or Build.</span>';
-  ['pushCueBtn','testFireBtn','delCueBtn'].forEach(x=>document.getElementById(x).style.display='none');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='none');
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
   document.getElementById('cueEditor').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function renameCue(){
+  if(!selectedCue) return;
+  const name=document.getElementById('cueName').value.trim();
+  if(!name){ alert('Enter a name'); return; }
+  await fetch('/api/cue/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue,name})});
+  document.getElementById('editorTitle').textContent='Cue · '+name;
+  log('renamed → '+name); await loadWorkspace();
 }
 async function openEditor(id){
   const c=WS.cues.find(x=>x.id===id); if(!c) return;
@@ -512,7 +523,7 @@ async function openEditor(id){
   document.getElementById('buildMode').value=c.mode==='compose'?'compose':(c.mode);
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
-  ['pushCueBtn','testFireBtn','delCueBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
   // show the cue's built preview
@@ -590,11 +601,13 @@ async function buildCue(){
   document.getElementById('buildStatus').textContent='building…';
   let cueId=null;
   if(mode==='compose'){
-    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:composeForm()})).json(); cueId=r.cue_id;
+    const fd=composeForm(); if(selectedCue) fd.append('existing_id',selectedCue);
+    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:fd})).json(); cueId=r.cue_id;
   } else {
     const f=document.getElementById('buildFile').files[0];
     if(!f){ alert('Choose a master file'); return; }
     const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode',mode);
+    if(selectedCue) fd.append('existing_id',selectedCue);
     if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
     if(f.type.startsWith('video')){
       const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); cueId=r.cue_id;
