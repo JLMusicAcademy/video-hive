@@ -80,6 +80,12 @@ on the **Wall** tab to override for the open workspace, then **Reset to system
 default** or **Save as system default** as needed. (Panel physical dimensions
 live in the config and are shared.)
 
+**The grid locks once a workspace has cues** — they're already sliced for that
+grid, so layout/fit/bezel can't change. To re-grid, use **Save As…** (top of the
+Workspace page): it copies the workspace's settings and grid into a new, empty
+(unlocked) workspace where you set the grid and build cues fresh. TV placement
+(host/port routing) stays editable even when locked.
+
 ## Authoring target (so you never do the math)
 
 Pick a grid and the hub shows the exact size to author your master at, e.g. for

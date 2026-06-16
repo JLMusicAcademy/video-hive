@@ -65,9 +65,13 @@
   .cuerow:hover { background:#f8fafc; }
   .cuerow.sel { background:#eef2ff; }
   .cuerow.standby { box-shadow:inset 3px 0 0 #6366f1; }
-  .cuelist.dragover { outline:2px dashed #6366f1; outline-offset:3px; background:#f5f7ff; }
-  .cuerow.over { box-shadow:inset 0 3px 0 #6366f1; }
+  .cuelist.dragover { outline:2px dashed #818cf8; outline-offset:3px; background:#f5f7ff; }
+  .cuerow.dragging { opacity:.45; }
+  .cuerow.drop-before { box-shadow:inset 0 4px 0 -1px #6366f1; }
+  .cuerow.drop-after { box-shadow:inset 0 -4px 0 -1px #6366f1; }
   .cuerow[draggable=true] { cursor:grab; }
+  .lay.disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+  .locknote { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; }
   .cuerow .nm { font-weight:600; }
   .cuerow .mt { font-size:12px; color:#64748b; }
   .ptr { color:#6366f1; font-weight:800; }
@@ -146,6 +150,7 @@
     <div class="wsbar">
       <select id="wsSel" onchange="switchWorkspace(this.value)"></select>
       <button class="btn btn-secondary" onclick="newWorkspace()">＋ New</button>
+      <button class="btn btn-secondary" onclick="saveAsWorkspace()">⧉ Save As…</button>
       <div class="grow"></div>
       <div class="modeswitch">
         <button id="modeEdit" class="on" onclick="setMode('edit')">Edit</button>
@@ -223,9 +228,10 @@
     <h2>Wall — define the grid</h2>
     <div class="sub" id="wallScope">This wall belongs to the open workspace.</div>
     <div class="btn-row" style="margin-top:8px">
-      <button class="btn btn-secondary" onclick="wallReset()">↺ Reset to system default</button>
+      <button class="btn btn-secondary" id="wallResetBtn" onclick="wallReset()">↺ Reset to system default</button>
       <button class="btn btn-secondary" onclick="wallSaveDefault()">★ Save as system default</button>
     </div>
+    <div class="locknote" id="wallLockNote" style="display:none">🔒 This grid is locked because the workspace already has cues (they're sliced for this grid). To use a different grid, <b>Save As</b> a copy and change its grid before building cues. TV placement below stays editable.</div>
     <label>Layout</label>
     <div class="layouts" id="layouts"></div>
     <label>Fit (how a master maps onto the wall)</label>
@@ -286,8 +292,13 @@ async function loadState(){
   document.getElementById('hLayout').textContent=S.active_workspace.name+' · '+S.layout;
   document.getElementById('fit').value=S.fit;
   document.getElementById('bezel').value=S.bezel_comp?'1':'0';
+  const locked=S.wall_locked;
   document.getElementById('layouts').innerHTML=S.layouts.map(l=>
-    `<div class="lay ${l===S.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
+    `<div class="lay ${l===S.layout?'active':''} ${locked?'disabled':''}" ${locked?'':`onclick="setLayout('${l}')"`}>${l}</div>`).join('');
+  document.getElementById('fit').disabled=locked;
+  document.getElementById('bezel').disabled=locked;
+  document.getElementById('wallResetBtn').disabled=locked;
+  document.getElementById('wallLockNote').style.display=locked?'block':'none';
   const a=S.authoring, comp=S.bezel_comp, main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${main.w}×${main.h}px</b> (${main.aspect}, ${comp?'bezel-compensated':'no bezel comp'})`+
@@ -399,23 +410,51 @@ async function newWorkspace(){
   await fetch('/api/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   selectedCue=null; standbyId=null; await loadState(); await loadWorkspace(); log('created workspace '+name);
 }
+async function saveAsWorkspace(){
+  const name=prompt('Save a copy as (settings + grid only, no cues):', S.active_workspace.name+' copy'); if(!name) return;
+  await fetch('/api/workspace/save_as',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
+  await loadState(); await loadWorkspace(); log('saved copy: '+name+' (change its grid, then build cues)');
+}
 
 // ----- drag media in to create cues, drag rows to reorder -----
-function cueDragStart(e,id){ if(!editMode){ e.preventDefault(); return; } dragCueId=id; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',id); }
+function cueDragStart(e,id){
+  if(!editMode){ e.preventDefault(); return; }
+  dragCueId=id; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',id);
+  const row=document.querySelector(`.cuerow[data-id="${id}"]`); if(row) setTimeout(()=>row.classList.add('dragging'),0);
+}
+function clearDropMarks(){ document.querySelectorAll('.cuerow.drop-before,.cuerow.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after')); }
 function setupCueDnD(){
   const wrap=document.getElementById('cueListWrap');
-  wrap.addEventListener('dragover',e=>{ e.preventDefault(); wrap.classList.add('dragover');
-    document.querySelectorAll('.cuerow.over').forEach(x=>x.classList.remove('over'));
-    const row=e.target.closest('.cuerow'); if(row&&dragCueId) row.classList.add('over'); });
-  wrap.addEventListener('dragleave',e=>{ if(e.target===wrap) wrap.classList.remove('dragover'); });
+  wrap.addEventListener('dragover',e=>{
+    const files=[...e.dataTransfer.types].includes('Files');
+    if(!dragCueId && !files) return;
+    e.preventDefault(); wrap.classList.add('dragover'); clearDropMarks();
+    const row=e.target.closest('.cuerow');
+    if(row && dragCueId && row.dataset.id!==dragCueId){
+      const rect=row.getBoundingClientRect();
+      const after=(e.clientY-rect.top) > rect.height/2;
+      row.classList.add(after?'drop-after':'drop-before');
+      row.dataset.dropAfter=after?'1':'0';
+    }
+  });
+  wrap.addEventListener('dragleave',e=>{ if(e.target===wrap){ wrap.classList.remove('dragover'); clearDropMarks(); } });
   wrap.addEventListener('drop',async e=>{
-    e.preventDefault(); wrap.classList.remove('dragover');
-    document.querySelectorAll('.cuerow.over').forEach(x=>x.classList.remove('over'));
-    if(e.dataTransfer.files.length){ await createCuesFromFiles(e.dataTransfer.files); return; }
+    e.preventDefault(); wrap.classList.remove('dragover'); clearDropMarks();
+    if(e.dataTransfer.files.length){ dragCueId=null; await createCuesFromFiles(e.dataTransfer.files); return; }
     if(!dragCueId) return;
-    const row=e.target.closest('.cuerow'); await reorderCue(dragCueId, row?row.dataset.id:null); dragCueId=null;
+    const row=e.target.closest('.cuerow'); let beforeId=null;
+    if(row && row.dataset.id!==dragCueId){
+      const ids=WS.cues.map(c=>c.id);
+      if(row.dataset.dropAfter==='1'){ beforeId=ids[ids.indexOf(row.dataset.id)+1]||null; }
+      else beforeId=row.dataset.id;
+    }
+    const moved=dragCueId; dragCueId=null; await reorderCue(moved,beforeId);
   });
 }
+document.addEventListener('dragend',()=>{ dragCueId=null; clearDropMarks();
+  document.querySelectorAll('.cuerow.dragging').forEach(x=>x.classList.remove('dragging'));
+  document.getElementById('cueListWrap').classList.remove('dragover'); });
 async function reorderCue(id,beforeId){
   const ids=WS.cues.map(c=>c.id); const from=ids.indexOf(id); if(from<0) return;
   ids.splice(from,1);

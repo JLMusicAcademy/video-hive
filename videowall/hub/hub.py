@@ -440,6 +440,7 @@ def api_state():
         "layout": cfg["layout"], "fit": cfg.get("fit", "cover"),
         "bezel_comp": cfg.get("bezel_comp", True),
         "wall_is_default": cfg == default_wall(),
+        "wall_locked": len(ws["cues"]) > 0,
         "layouts": list(geometry.LAYOUTS.keys()),
         "rows": layout["rows"], "cols": layout["cols"],
         "orientation": layout["orientation"], "nodes": cfg.get("nodes", {}),
@@ -452,11 +453,18 @@ def api_state():
 
 @app.route("/api/layout", methods=["POST"])
 def api_layout():
-    """Set the active workspace's layout / fit / bezel handling."""
+    """Set the active workspace's layout / fit / bezel handling.
+
+    The grid is locked once the workspace has cues (they are already sliced for
+    this grid). Use Save As to copy the workspace and change the grid there.
+    """
     data = request.json or {}
     name = data.get("layout")
     if name not in geometry.LAYOUTS:
         return jsonify({"error": f"unknown layout {name!r}"}), 400
+    if active_workspace()["cues"]:
+        return jsonify({"error": "wall is locked: this workspace already has "
+                        "cues. Use Save As to change the grid.", "locked": True}), 409
     wall = effective_config()
     wall["layout"] = name
     if "fit" in data:
@@ -483,6 +491,9 @@ def api_nodes():
 def api_wall_reset():
     """Reset the active workspace's wall to the system default."""
     ws = active_workspace()
+    if ws["cues"]:
+        return jsonify({"error": "wall is locked: this workspace has cues.",
+                        "locked": True}), 409
     ws["wall"] = copy.deepcopy(default_wall())
     save_workspace(ws)
     return jsonify({"ok": True})
@@ -597,6 +608,20 @@ def api_workspaces():
 def api_workspaces_create():
     name = (request.json or {}).get("name", "Untitled Workspace")
     ws = create_workspace(name)
+    open_workspace(ws["id"])
+    return jsonify({"ok": True, "id": ws["id"]})
+
+
+@app.route("/api/workspace/save_as", methods=["POST"])
+def api_workspace_save_as():
+    """Duplicate the active workspace's settings (wall + default image) into a
+    new, empty workspace -- so you can change the grid and build fresh cues."""
+    src = active_workspace()
+    name = (request.json or {}).get("name") or f"{src['name']} copy"
+    ws = create_workspace(name)
+    ws["wall"] = copy.deepcopy(src.get("wall") or default_wall())
+    ws["default_image"] = src.get("default_image")
+    save_workspace(ws)
     open_workspace(ws["id"])
     return jsonify({"ok": True, "id": ws["id"]})
 
