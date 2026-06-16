@@ -61,9 +61,10 @@ class Tile:
 # Layout presets requested for the wall. Panel physical dimensions come from
 # the wall config; orientation only selects which panel block to use.
 LAYOUTS = {
+    "1x1 landscape": {"rows": 1, "cols": 1, "orientation": "landscape"},
     "2x2": {"rows": 2, "cols": 2, "orientation": "landscape"},
     "4x4": {"rows": 4, "cols": 4, "orientation": "landscape"},
-    "1x1": {"rows": 1, "cols": 1, "orientation": "portrait"},
+    "1x1 portrait": {"rows": 1, "cols": 1, "orientation": "portrait"},
     "1x2": {"rows": 1, "cols": 2, "orientation": "portrait"},
     "1x3": {"rows": 1, "cols": 3, "orientation": "portrait"},
     "1x4": {"rows": 1, "cols": 4, "orientation": "portrait"},

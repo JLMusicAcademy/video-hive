@@ -65,6 +65,9 @@
   .cuerow:hover { background:#f8fafc; }
   .cuerow.sel { background:#eef2ff; }
   .cuerow.standby { box-shadow:inset 3px 0 0 #6366f1; }
+  .cuelist.dragover { outline:2px dashed #6366f1; outline-offset:3px; background:#f5f7ff; }
+  .cuerow.over { box-shadow:inset 0 3px 0 #6366f1; }
+  .cuerow[draggable=true] { cursor:grab; }
   .cuerow .nm { font-weight:600; }
   .cuerow .mt { font-size:12px; color:#64748b; }
   .ptr { color:#6366f1; font-weight:800; }
@@ -218,7 +221,11 @@
   <!-- WALL -->
   <div class="card tabpane" data-pane="wall" style="display:none">
     <h2>Wall — define the grid</h2>
-    <div class="sub">Choose the layout, how content fits, bezel handling, and which TV sits in each cell.</div>
+    <div class="sub" id="wallScope">This wall belongs to the open workspace.</div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-secondary" onclick="wallReset()">↺ Reset to system default</button>
+      <button class="btn btn-secondary" onclick="wallSaveDefault()">★ Save as system default</button>
+    </div>
     <label>Layout</label>
     <div class="layouts" id="layouts"></div>
     <label>Fit (how a master maps onto the wall)</label>
@@ -258,7 +265,7 @@
 
 <script>
 let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black';
-let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true;
+let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
 const TITLES={workspace:'Workspace',wall:'Wall',library:'Library'};
@@ -287,7 +294,17 @@ async function loadState(){
     `<br><span class="sub">other mode: ${alt.w}×${alt.h}px (${alt.aspect})</span>`;
   let opts=''; for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;
+  document.getElementById('wallScope').innerHTML=
+    `Wall for workspace <b>${S.active_workspace.name}</b> — `+
+    (S.wall_is_default?'matches the system default.':'<b>overridden</b> (differs from the system default).');
   renderGrid();
+}
+async function wallReset(){
+  if(!confirm('Reset this workspace\\'s wall to the system default?')) return;
+  await fetch('/api/wall/reset',{method:'POST'}); await loadState(); await refresh(); renderGridConfig(); log('wall reset to default');
+}
+async function wallSaveDefault(){
+  await fetch('/api/wall/save_default',{method:'POST'}); await loadState(); log('saved this wall as system default');
 }
 async function refresh(){
   const r=await (await fetch('/api/nodes/status')).json();
@@ -308,10 +325,11 @@ async function loadWorkspace(){
 }
 function renderCues(){
   const el=document.getElementById('cueRows');
-  if(!WS.cues.length){ el.innerHTML='<div class="cuerow"><div></div><div></div><div class="sub">No cues yet. '+(editMode?'Add one below.':'Switch to Edit to add cues.')+'</div></div>'; return; }
+  if(!WS.cues.length){ el.innerHTML='<div class="cuerow"><div></div><div></div><div class="sub">No cues yet. '+(editMode?'Drag image/video files here, or use “Add cue”.':'Switch to Edit to add cues.')+'</div></div>'; return; }
   el.innerHTML=WS.cues.map((c,i)=>`
-    <div class="cuerow ${c.id===selectedCue?'sel':''} ${c.id===standbyId?'standby':''}" onclick="clickCue('${c.id}')">
-      <div class="ptr">${c.id===standbyId?'▶':''}</div>
+    <div class="cuerow ${c.id===selectedCue?'sel':''} ${c.id===standbyId?'standby':''}" data-id="${c.id}"
+         draggable="${editMode}" ondragstart="cueDragStart(event,'${c.id}')" onclick="clickCue('${c.id}')">
+      <div class="ptr">${editMode?'⠿ ':''}${c.id===standbyId?'▶':''}</div>
       <div>${i+1}</div>
       <div><div class="nm">${c.name}</div><div class="mt col-type">${c.type} · ${c.mode}</div></div>
       <div class="col-type">${c.type}/${c.mode}</div>
@@ -380,6 +398,48 @@ async function newWorkspace(){
   const name=prompt('New workspace name:'); if(!name) return;
   await fetch('/api/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   selectedCue=null; standbyId=null; await loadState(); await loadWorkspace(); log('created workspace '+name);
+}
+
+// ----- drag media in to create cues, drag rows to reorder -----
+function cueDragStart(e,id){ if(!editMode){ e.preventDefault(); return; } dragCueId=id; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',id); }
+function setupCueDnD(){
+  const wrap=document.getElementById('cueListWrap');
+  wrap.addEventListener('dragover',e=>{ e.preventDefault(); wrap.classList.add('dragover');
+    document.querySelectorAll('.cuerow.over').forEach(x=>x.classList.remove('over'));
+    const row=e.target.closest('.cuerow'); if(row&&dragCueId) row.classList.add('over'); });
+  wrap.addEventListener('dragleave',e=>{ if(e.target===wrap) wrap.classList.remove('dragover'); });
+  wrap.addEventListener('drop',async e=>{
+    e.preventDefault(); wrap.classList.remove('dragover');
+    document.querySelectorAll('.cuerow.over').forEach(x=>x.classList.remove('over'));
+    if(e.dataTransfer.files.length){ await createCuesFromFiles(e.dataTransfer.files); return; }
+    if(!dragCueId) return;
+    const row=e.target.closest('.cuerow'); await reorderCue(dragCueId, row?row.dataset.id:null); dragCueId=null;
+  });
+}
+async function reorderCue(id,beforeId){
+  const ids=WS.cues.map(c=>c.id); const from=ids.indexOf(id); if(from<0) return;
+  ids.splice(from,1);
+  let to = beforeId ? ids.indexOf(beforeId) : ids.length; if(to<0) to=ids.length;
+  ids.splice(to,0,id);
+  await fetch('/api/cue/reorder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:ids})});
+  log('reordered cues'); await loadWorkspace();
+}
+async function createCuesFromFiles(files){
+  if(!editMode){ alert('Switch to Edit mode to add cues.'); return; }
+  let n=0;
+  for(const f of files){
+    const name=f.name.replace(/\.[^.]+$/,'');
+    if(f.type.startsWith('image')){
+      const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode','span');
+      await fetch('/api/cue/build',{method:'POST',body:fd}); n++;
+    } else if(f.type.startsWith('video')){
+      const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name);
+      document.getElementById('buildStatus').textContent='tiling '+name+'…';
+      const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); n++;
+    }
+  }
+  document.getElementById('buildStatus').textContent='';
+  log(n+' cue(s) added from dropped media (drafts — Push when ready)'); await loadWorkspace();
 }
 
 // ===== CUE EDITOR =====
@@ -602,6 +662,7 @@ document.addEventListener('keydown',e=>{
     e.preventDefault(); go(); }
 });
 
+setupCueDnD();
 loadState().then(()=>{ refresh(); loadWorkspace(); });
 setInterval(refresh,15000);
 </script>

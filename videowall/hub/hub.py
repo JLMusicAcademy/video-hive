@@ -21,6 +21,7 @@ Run from this directory:
 
 import argparse
 import base64
+import copy
 import io
 import json
 import os
@@ -78,15 +79,45 @@ def save_config():
         json.dump(STATE["config"], f, indent=2)
 
 
-def current_panel():
+def default_wall():
+    """The system-default wall (the template new workspaces inherit)."""
     cfg = STATE["config"]
-    layout = geometry.LAYOUTS[cfg["layout"]]
+    return {
+        "layout": cfg["layout"],
+        "fit": cfg.get("fit", "cover"),
+        "bezel_comp": cfg.get("bezel_comp", True),
+        "panels": cfg["panels"],
+        "nodes": cfg.get("nodes", {}),
+    }
+
+
+def effective_config():
+    """The active workspace's own wall (grid + fit + bezel + TV placement).
+
+    Seeded from the system default when a workspace has none, so each workspace
+    can drive a different grid (e.g. a 1x1 standalone display vs the full wall).
+    """
+    ws = active_workspace()
+    if not ws.get("wall"):
+        ws["wall"] = copy.deepcopy(default_wall())
+        save_workspace(ws)
+    return ws["wall"]
+
+
+def eff_nodes():
+    return effective_config().get("nodes", {})
+
+
+def current_panel():
+    cfg = effective_config()
+    name = cfg["layout"] if cfg["layout"] in geometry.LAYOUTS else next(iter(geometry.LAYOUTS))
+    layout = geometry.LAYOUTS[name]
     return geometry.PanelSpec.from_dict(cfg["panels"][layout["orientation"]]), layout
 
 
 def current_tiles():
     panel, layout = current_panel()
-    bezel_comp = STATE["config"].get("bezel_comp", True)
+    bezel_comp = effective_config().get("bezel_comp", True)
     tiles, cw, ch = geometry.build_tiles(layout["rows"], layout["cols"], panel,
                                          bezel_comp)
     return tiles, cw, ch, panel, layout
@@ -97,7 +128,7 @@ def ppu_for(panel):
 
 
 def node_for(row, col):
-    return STATE["config"]["nodes"].get(f"{row},{col}")
+    return eff_nodes().get(f"{row},{col}")
 
 
 def slugify(s):
@@ -174,6 +205,7 @@ def create_workspace(name):
     while workspace_path(ws_id).exists():
         ws_id = f"{base}-{n}"; n += 1
     ws = {"id": ws_id, "name": name, "default_image": None,
+          "wall": copy.deepcopy(default_wall()),
           "created": time.time(), "order": [], "cues": {}}
     save_workspace(ws)
     return ws
@@ -238,7 +270,7 @@ def post_targets(targets, path, **kwargs):
 
 
 def all_node_items():
-    return [(k, n) for k, n in STATE["config"]["nodes"].items()]
+    return [(k, n) for k, n in eff_nodes().items()]
 
 
 # --------------------------------------------------------------------------- #
@@ -266,7 +298,7 @@ def png_bytes(img):
 
 def slice_for_mode(src, mode, target):
     tiles, cw, ch, panel, layout = current_tiles()
-    fit = STATE["config"].get("fit", "cover")
+    fit = effective_config().get("fit", "cover")
     staged = {}
     if mode == "span":
         for (r, c), img in slicer.slice_image(src, tiles, cw, ch, fit,
@@ -297,7 +329,7 @@ def resolve_sources(assignments):
 
 def compose_images(sources, assignments):
     tiles, cw, ch, panel, layout = current_tiles()
-    fit = STATE["config"].get("fit", "cover")
+    fit = effective_config().get("fit", "cover")
     ppu = ppu_for(panel)
     slice_cache = {}
     out = {}
@@ -401,15 +433,16 @@ def index():
 
 @app.route("/api/state")
 def api_state():
-    cfg = STATE["config"]
+    cfg = effective_config()
     tiles, cw, ch, panel, layout = current_tiles()
     ws = active_workspace()
     return jsonify({
         "layout": cfg["layout"], "fit": cfg.get("fit", "cover"),
         "bezel_comp": cfg.get("bezel_comp", True),
+        "wall_is_default": cfg == default_wall(),
         "layouts": list(geometry.LAYOUTS.keys()),
         "rows": layout["rows"], "cols": layout["cols"],
-        "orientation": layout["orientation"], "nodes": cfg["nodes"],
+        "orientation": layout["orientation"], "nodes": cfg.get("nodes", {}),
         "panel": panel.__dict__,
         "authoring": geometry.authoring_target(layout["rows"], layout["cols"], panel),
         "active_workspace": {"id": ws["id"], "name": ws["name"],
@@ -419,28 +452,51 @@ def api_state():
 
 @app.route("/api/layout", methods=["POST"])
 def api_layout():
+    """Set the active workspace's layout / fit / bezel handling."""
     data = request.json or {}
     name = data.get("layout")
     if name not in geometry.LAYOUTS:
         return jsonify({"error": f"unknown layout {name!r}"}), 400
-    STATE["config"]["layout"] = name
+    wall = effective_config()
+    wall["layout"] = name
     if "fit" in data:
-        STATE["config"]["fit"] = data["fit"]
+        wall["fit"] = data["fit"]
     if "bezel_comp" in data:
-        STATE["config"]["bezel_comp"] = bool(data["bezel_comp"])
-    save_config()
+        wall["bezel_comp"] = bool(data["bezel_comp"])
+    save_workspace(active_workspace())
     return jsonify({"ok": True})
 
 
 @app.route("/api/nodes", methods=["POST"])
 def api_nodes():
+    """Set the active workspace's TV placement."""
     data = request.json or {}
     nodes = data.get("nodes")
     if not isinstance(nodes, dict):
         return jsonify({"error": "nodes must be an object"}), 400
-    STATE["config"]["nodes"] = nodes
-    save_config()
+    effective_config()["nodes"] = nodes
+    save_workspace(active_workspace())
     return jsonify({"ok": True, "nodes": nodes})
+
+
+@app.route("/api/wall/reset", methods=["POST"])
+def api_wall_reset():
+    """Reset the active workspace's wall to the system default."""
+    ws = active_workspace()
+    ws["wall"] = copy.deepcopy(default_wall())
+    save_workspace(ws)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/wall/save_default", methods=["POST"])
+def api_wall_save_default():
+    """Make the active workspace's wall the new system default for new ones."""
+    w = effective_config()
+    STATE["config"].update({"layout": w["layout"], "fit": w.get("fit", "cover"),
+                            "bezel_comp": w.get("bezel_comp", True),
+                            "panels": w["panels"], "nodes": w.get("nodes", {})})
+    save_config()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/nodes/status")
@@ -460,7 +516,7 @@ def api_nodes_status():
 @app.route("/api/node/identify", methods=["POST"])
 def api_node_identify():
     key = (request.json or {}).get("key")
-    node = STATE["config"]["nodes"].get(key)
+    node = eff_nodes().get(key)
     if not node:
         return jsonify({"error": "unknown node"}), 404
     return jsonify({"ok": True,
@@ -628,7 +684,7 @@ def api_tiles():
     staged, (tiles, cw, ch, panel, layout) = slice_for_mode(src, mode, target)
     imgs = {k: Image.open(io.BytesIO(p)) for k, (_, p) in staged.items()}
     default = fit_single(library_image(default_image_id()), panel,
-                         STATE["config"].get("fit", "cover"))
+                         effective_config().get("fit", "cover"))
     for t in tiles:
         imgs.setdefault((t.row, t.col), default)
     return jsonify({"tiles": tiles_to_dataurls(imgs), "rows": layout["rows"],
@@ -684,7 +740,7 @@ def api_cue_build():
     staged, _ = slice_for_mode(src, mode, target)
     assets = save_assets(ws["id"], cue_id, staged)
     record_cue({"id": cue_id, "name": name, "type": "image", "mode": mode,
-                "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+                "layout": effective_config()["layout"], "panels": list(assets.keys()),
                 "assets": assets, "loop": False, "created": time.time()})
     return jsonify({"ok": True, "cue_id": cue_id})
 
@@ -701,7 +757,7 @@ def api_cue_build_compose():
     staged = {(r, c): (f"r{r}c{c}.png", png_bytes(img)) for (r, c), img in imgs.items()}
     assets = save_assets(ws["id"], cue_id, staged)
     record_cue({"id": cue_id, "name": name, "type": "image", "mode": "compose",
-                "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+                "layout": effective_config()["layout"], "panels": list(assets.keys()),
                 "assets": assets, "assign": assignments, "loop": False,
                 "created": time.time()})
     return jsonify({"ok": True, "cue_id": cue_id})
@@ -732,13 +788,13 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
     job = STATE["build_jobs"][job_id]
     try:
         tiles, cw, ch, panel, layout = current_tiles()
-        fit = STATE["config"].get("fit", "cover")
+        fit = effective_config().get("fit", "cover")
         job["total"] = len(tiles)
         files = tiler.tile_video(src_path, adir, tiles, cw, ch, fit,
                                  progress=lambda d, t, k: job.update(done=d))
         assets = {f"{r},{c}": path.name for (r, c), path in files.items()}
         cue = {"id": cue_id, "name": name, "type": "video", "mode": "span",
-               "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+               "layout": effective_config()["layout"], "panels": list(assets.keys()),
                "assets": assets, "loop": False, "created": time.time(),
                "pushed": False, "built_at": time.time()}
         ws = json.loads(workspace_path(ws_id).read_text())
@@ -796,11 +852,24 @@ def api_cue_fire():
                           else DEFAULT_FIRE_LEAD))
     nid = node_cue_id(ws["id"], cue_id)
     show_at = time.time() + lead
-    targets = [(k, STATE["config"]["nodes"][k])
-               for k in cue["panels"] if k in STATE["config"]["nodes"]]
+    targets = [(k, eff_nodes()[k])
+               for k in cue["panels"] if k in eff_nodes()]
     res = post_targets(targets, "/show_at",
                        json={"cue_id": nid, "at": show_at, "loop": loop})
     return jsonify({"ok": True, "cue_id": cue_id, "show_at": show_at, "nodes": res})
+
+
+@app.route("/api/cue/reorder", methods=["POST"])
+def api_cue_reorder():
+    """Set the cue order for the active workspace (drag-to-reorder)."""
+    order = (request.json or {}).get("order", [])
+    ws = active_workspace()
+    valid = [cid for cid in order if cid in ws["cues"]]
+    # keep any cues not mentioned (safety) appended in their old order
+    valid += [cid for cid in ws["order"] if cid not in valid]
+    ws["order"] = valid
+    save_workspace(ws)
+    return jsonify({"ok": True, "order": valid})
 
 
 @app.route("/api/cue/delete", methods=["POST"])
@@ -814,8 +883,8 @@ def api_cue_delete():
         ws["order"].remove(cue_id)
     save_workspace(ws)
     nid = node_cue_id(ws["id"], cue_id)
-    targets = [(k, STATE["config"]["nodes"][k])
-               for k in cue["panels"] if k in STATE["config"]["nodes"]]
+    targets = [(k, eff_nodes()[k])
+               for k in cue["panels"] if k in eff_nodes()]
     post_targets(targets, "/forget", json={"cue_id": nid})
     shutil.rmtree(workspace_asset_dir(ws["id"], cue_id), ignore_errors=True)
     return jsonify({"ok": True, "cue_id": cue_id})
