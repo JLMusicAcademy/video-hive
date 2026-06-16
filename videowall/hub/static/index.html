@@ -120,6 +120,13 @@
   .link { color:#4f46e5; font-weight:700; text-decoration:underline; }
   .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px; padding:12px; margin-top:14px; max-height:120px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
 
+  .oscrow { display:flex; align-items:center; gap:10px; padding:9px 12px; border-top:1px solid #f1f5f9; }
+  .oscrow:first-child { border-top:none; }
+  .oscrow .nm { font-weight:600; min-width:120px; }
+  .oscrow .addr { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#4338ca; background:#f5f7ff; border:1px solid #e0e7ff; border-radius:8px; padding:5px 8px; flex:1; overflow-x:auto; white-space:nowrap; }
+  .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .badge.on { background:#dcfce7; color:#15803d; } .badge.off { background:#fee2e2; color:#b91c1c; }
+
   @media (max-width:760px){
     .content { padding:14px 12px 70px; }
     .card { padding:15px; }
@@ -137,6 +144,7 @@
   <div class="navitem active" data-nav="workspace" onclick="tab('workspace')">🎬 Workspace</div>
   <div class="navitem" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
   <div class="navitem" data-nav="library" onclick="tab('library')">🖼 Library</div>
+  <div class="navitem" data-nav="qlab" onclick="tab('qlab')">🎚 QLab</div>
 </nav>
 
 <div class="topbar">
@@ -282,6 +290,39 @@
     </div>
     <div class="libgrid" id="libGrid"></div>
   </div>
+
+  <!-- QLAB -->
+  <div class="card tabpane" data-pane="qlab" style="display:none">
+    <h2>QLab bridge</h2>
+    <div class="sub">Run the show from QLab. Each cue below has its own OSC address —
+      add a QLab <b>Network (OSC)</b> cue that sends that address to the hub, and GO will
+      fire it (synchronized across all panels). QLab owns the order; the address says what to show.</div>
+
+    <div class="target" id="qlabConn" style="margin-top:14px"></div>
+
+    <label style="margin-top:16px">Bridge</label>
+    <div class="btn-row" style="align-items:center">
+      <button class="btn" id="oscToggle" onclick="toggleOsc()" style="flex:0 0 auto">…</button>
+      <div style="display:flex;flex-direction:column;flex:1;min-width:160px">
+        <span class="sub">Listen port (UDP)</span>
+        <input type="number" id="oscPort" style="max-width:140px" onchange="saveOsc()">
+      </div>
+      <div style="display:flex;flex-direction:column;flex:1;min-width:160px">
+        <span class="sub">Address prefix</span>
+        <input type="text" id="oscPrefix" style="max-width:200px" onchange="saveOsc()">
+      </div>
+    </div>
+    <div class="sub" id="oscNote" style="margin-top:8px"></div>
+
+    <label style="margin-top:18px">Cue addresses — workspace “<span id="qlabWs"></span>”</label>
+    <div class="btn-row" style="margin-bottom:8px">
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="copyAllOsc()">⧉ Copy all addresses</button>
+    </div>
+    <div class="cuelist" id="qlabCues"></div>
+
+    <label style="margin-top:18px">Control addresses</label>
+    <div class="cuelist" id="qlabControl"></div>
+  </div>
 </div>
 
 <script>
@@ -289,7 +330,7 @@ let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default';
 let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
-const TITLES={workspace:'Workspace',wall:'Wall',library:'Library'};
+const TITLES={workspace:'Workspace',wall:'Wall',library:'Library',qlab:'QLab'};
 function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
 function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
 function tab(name){
@@ -299,6 +340,7 @@ function tab(name){
   if(name==='workspace'){ loadWorkspace(); }
   if(name==='wall'){ renderWall(); }
   if(name==='library'){ loadLibraryTab(); }
+  if(name==='qlab'){ loadQlab(); }
   closeDrawer();
 }
 
@@ -698,6 +740,63 @@ async function setDefaultImage(){
   const v=document.getElementById('defaultImg').value;
   await fetch('/api/workspace/default_image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({default_image:v})});
   log('default image -> '+v); loadActiveLib();
+}
+
+// ===== QLAB BRIDGE =====
+let QLAB=null;
+async function loadQlab(){
+  QLAB=await (await fetch('/api/qlab')).json();
+  const o=QLAB.osc, dest=`${QLAB.host} : ${o.port}`;
+  let state = !o.available ? '<span class="badge off">python-osc not installed</span>'
+            : !o.enabled  ? '<span class="badge off">disabled</span>'
+            : o.running   ? '<span class="badge on">listening</span>'
+                          : '<span class="badge off">not running</span>';
+  document.getElementById('qlabConn').innerHTML=
+    `In QLab, set each Network cue's destination to <b>${QLAB.host}</b> port <b>${o.port}</b> (UDP/OSC). `+
+    `Bridge: ${state}`;
+  document.getElementById('oscPort').value=o.port;
+  document.getElementById('oscPrefix').value=o.prefix;
+  const tg=document.getElementById('oscToggle');
+  tg.textContent = o.enabled?'Disable bridge':'Enable bridge';
+  tg.className = 'btn '+(o.enabled?'btn-danger':'btn-go');
+  tg.disabled = !o.available;
+  document.getElementById('oscNote').textContent = o.available
+    ? 'The hub listens for OSC here. Keep the hub and QLab on the same network; keep TV clocks on NTP for tight sync.'
+    : 'Install python-osc on the hub (pip install python-osc) and restart to enable the bridge.';
+  document.getElementById('qlabWs').textContent=QLAB.workspace.name;
+
+  document.getElementById('qlabCues').innerHTML = QLAB.cues.length
+    ? QLAB.cues.map(c=>`<div class="oscrow">
+        <span class="nm">${c.name}</span>
+        <span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span>
+        <code class="addr">${c.address}</code>
+        <button class="iconbtn" title="Copy address" onclick="copyText('${c.address}')">⧉</button></div>`).join('')
+    : '<div class="oscrow"><span class="sub">No cues in this workspace yet.</span></div>';
+
+  document.getElementById('qlabControl').innerHTML = Object.entries(QLAB.control).map(([k,a])=>
+    `<div class="oscrow"><span class="nm">${k}</span><code class="addr">${a}</code>
+      <button class="iconbtn" title="Copy address" onclick="copyText('${a}')">⧉</button></div>`).join('');
+}
+async function toggleOsc(){
+  if(!QLAB) return;
+  await postOsc({enabled:!QLAB.osc.enabled});
+}
+async function saveOsc(){
+  const port=parseInt(document.getElementById('oscPort').value);
+  const prefix=document.getElementById('oscPrefix').value.trim();
+  await postOsc({port,prefix});
+}
+async function postOsc(body){
+  const r=await (await fetch('/api/qlab/osc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(r.error){ alert(r.error); return; }
+  log('OSC bridge: '+(r.osc.enabled?('on udp/'+r.osc.port+(r.osc.running?'':' (not running)')):'off'));
+  loadQlab();
+}
+function copyText(t){ navigator.clipboard?.writeText(t); log('copied '+t); }
+function copyAllOsc(){
+  if(!QLAB) return;
+  const lines=QLAB.cues.map(c=>c.name+'\t'+c.address).join('\n');
+  copyText(lines); log('copied '+QLAB.cues.length+' cue address(es)');
 }
 
 // ===== WALL (target = system default or this workspace) =====

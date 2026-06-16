@@ -26,6 +26,7 @@ import io
 import json
 import os
 import shutil
+import socket
 import sys
 import threading
 import time
@@ -42,6 +43,13 @@ from PIL import Image, ImageOps
 import geometry
 import slicer
 import tiler
+
+try:                                              # the QLab OSC bridge is optional
+    from pythonosc.dispatcher import Dispatcher
+    from pythonosc.osc_server import ThreadingOSCUDPServer
+    HAVE_OSC = True
+except ImportError:
+    HAVE_OSC = False
 
 app = Flask(__name__, static_folder="static")
 CORS(app)
@@ -61,8 +69,13 @@ STATE = {
     "build_jobs": {},
 }
 
+# Live state of the QLab->hub OSC listener (the bridge).
+OSC = {"server": None, "thread": None, "running": False, "port": None}
+
 DEFAULT_FIRE_LEAD = 0.20
 DEFAULT_VIDEO_LEAD = 0.8
+DEFAULT_OSC_PORT = 53000
+DEFAULT_OSC_PREFIX = "/videohive"
 
 
 # --------------------------------------------------------------------------- #
@@ -288,6 +301,63 @@ def post_targets(targets, path, **kwargs):
 
 def all_node_items():
     return [(k, n) for k, n in eff_nodes().items()]
+
+
+def local_ip():
+    """Best-effort LAN IP of the hub -- the address QLab should send OSC to."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def ws_for(ws_id):
+    """Resolve a workspace dict by id (active cache if it matches, else from
+    disk). None when ws_id is given but unknown; the active workspace when not."""
+    if not ws_id:
+        return active_workspace()
+    if STATE["workspace"] and STATE["workspace"]["id"] == ws_id:
+        return STATE["workspace"]
+    p = workspace_path(ws_id)
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def ws_nodes(ws):
+    """The TV placement that a given workspace fires against (its own grid
+    override if it has one, else the system default)."""
+    return (ws.get("wall") or default_wall()).get("nodes", {})
+
+
+def fire_cue(cue_id, ws_id=None, loop=None, lead=None, force=False):
+    """Fire a cue: schedule a synchronized flip on every panel's TV at a shared
+    wall-clock time. Shared by the HTTP route and the QLab OSC bridge. Returns a
+    result dict; on failure it carries an HTTP-style `status`."""
+    ws = ws_for(ws_id)
+    if ws is None:
+        return {"ok": False, "status": 404, "error": f"unknown workspace {ws_id!r}"}
+    cue = ws["cues"].get(cue_id)
+    if not cue:
+        return {"ok": False, "status": 404, "error": f"unknown cue {cue_id!r}"}
+    if not cue.get("pushed") and not force:
+        return {"ok": False, "status": 409, "needs_push": True,
+                "error": "cue not pushed to displays"}
+
+    if lead is None:
+        lead = DEFAULT_VIDEO_LEAD if cue["type"] == "video" else DEFAULT_FIRE_LEAD
+    if loop is None:
+        loop = bool(cue.get("loop", False))
+    nodes = ws_nodes(ws)
+    nid = node_cue_id(ws["id"], cue_id)
+    show_at = time.time() + float(lead)
+    targets = [(k, nodes[k]) for k in cue["panels"] if k in nodes]
+    res = post_targets(targets, "/show_at",
+                       json={"cue_id": nid, "at": show_at, "loop": bool(loop)})
+    return {"ok": True, "cue_id": cue_id, "workspace": ws["id"],
+            "show_at": show_at, "nodes": res}
 
 
 # --------------------------------------------------------------------------- #
@@ -878,25 +948,12 @@ def api_cue_push():
 @app.route("/api/cue/fire", methods=["POST"])
 def api_cue_fire():
     data = request.json or {}
-    cue_id = data.get("cue_id")
-    ws = active_workspace()
-    cue = ws["cues"].get(cue_id)
-    if not cue:
-        return jsonify({"error": f"unknown cue {cue_id!r}"}), 404
-    if not cue.get("pushed") and not data.get("force"):
-        return jsonify({"error": "cue not pushed to displays", "needs_push": True}), 409
-
-    loop = bool(data.get("loop", False))
-    lead = float(data.get("lead",
-                          DEFAULT_VIDEO_LEAD if cue["type"] == "video"
-                          else DEFAULT_FIRE_LEAD))
-    nid = node_cue_id(ws["id"], cue_id)
-    show_at = time.time() + lead
-    targets = [(k, eff_nodes()[k])
-               for k in cue["panels"] if k in eff_nodes()]
-    res = post_targets(targets, "/show_at",
-                       json={"cue_id": nid, "at": show_at, "loop": loop})
-    return jsonify({"ok": True, "cue_id": cue_id, "show_at": show_at, "nodes": res})
+    res = fire_cue(data.get("cue_id"), ws_id=data.get("workspace"),
+                   loop=data.get("loop"), lead=data.get("lead"),
+                   force=data.get("force"))
+    if not res.get("ok"):
+        return jsonify(res), res.pop("status", 400)
+    return jsonify(res)
 
 
 def resolve_cue_id(name):
@@ -969,16 +1026,173 @@ def parse_target(s):
     return (int(r), int(c))
 
 
+# --------------------------------------------------------------------------- #
+# QLab <-> hub OSC bridge
+#
+# QLab runs the show. Each QLab Network (OSC) cue sends one address that names
+# the exact Video Hive cue to fire (Option 2: one address per cue), e.g.
+#     /videohive/cue/<workspace>/<cue_id>
+# The hub maps that to fire_cue(), which schedules the synchronized flip. There
+# is no shared playhead to drift: QLab owns the order, the address says what to
+# show. Convenience control addresses: /videohive/black|clear|stop.
+# --------------------------------------------------------------------------- #
+def osc_settings():
+    s = STATE["settings"].setdefault("osc", {})
+    s.setdefault("enabled", True)
+    s.setdefault("port", DEFAULT_OSC_PORT)
+    s.setdefault("prefix", DEFAULT_OSC_PREFIX)
+    return s
+
+
+def osc_prefix():
+    return "/" + osc_settings()["prefix"].strip("/")
+
+
+def _osc_route(address, *args):
+    """Default handler for every incoming OSC message under our prefix."""
+    prefix = osc_prefix()
+    if not (address == prefix or address.startswith(prefix + "/")):
+        return
+    parts = [p for p in address[len(prefix):].split("/") if p]
+    if not parts:
+        return
+    head = parts[0]
+
+    if head in ("black", "clear", "stop"):
+        post_targets(all_node_items(), f"/{head}")
+        print(f"[osc] control {head}")
+        return
+
+    if head == "cue":
+        rest = parts[1:]
+        if len(rest) >= 2:                        # /cue/<ws>/<cue_id>
+            ws_id, cue_id = rest[0], rest[1]
+        elif len(rest) == 1:                      # /cue/<cue_id>  (active workspace)
+            ws_id, cue_id = None, rest[0]
+        elif args:                                # /cue  with cue_id as an argument
+            ws_id, cue_id = None, str(args[0])
+        else:
+            print("[osc] /cue with no cue id -- ignored")
+            return
+        nums = [a for a in args if isinstance(a, (int, float))]
+        lead = float(nums[0]) if nums else None
+        res = fire_cue(cue_id, ws_id=ws_id, lead=lead)
+        if res.get("ok"):
+            print(f"[osc] fire {res['workspace']}/{cue_id} @ {res['show_at']:.2f}")
+        else:
+            print(f"[osc] fire {ws_id or '(active)'}/{cue_id} FAILED: {res.get('error')}")
+        return
+
+    print(f"[osc] unhandled address {address!r}")
+
+
+def stop_osc():
+    if OSC.get("server"):
+        try:
+            OSC["server"].shutdown()
+        except Exception:
+            pass
+    OSC.update(server=None, thread=None, running=False, port=None)
+
+
+def start_osc():
+    """(Re)start the OSC listener from current settings. Safe to call repeatedly;
+    degrades quietly when disabled or when python-osc isn't installed."""
+    stop_osc()
+    s = osc_settings()
+    if not s.get("enabled"):
+        print("[osc] bridge disabled")
+        return False
+    if not HAVE_OSC:
+        print("[osc] python-osc not installed -- bridge disabled "
+              "(pip install python-osc)")
+        return False
+    disp = Dispatcher()
+    disp.set_default_handler(_osc_route)
+    try:
+        server = ThreadingOSCUDPServer(("0.0.0.0", int(s["port"])), disp)
+    except OSError as e:
+        print(f"[osc] cannot bind udp/{s['port']}: {e}")
+        return False
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    OSC.update(server=server, thread=t, running=True, port=int(s["port"]))
+    print(f"[osc] listening on udp/{s['port']}  prefix {osc_prefix()}")
+    return True
+
+
+def osc_status():
+    s = osc_settings()
+    return {"enabled": bool(s["enabled"]), "port": int(s["port"]),
+            "prefix": osc_prefix(), "running": OSC.get("running", False),
+            "available": HAVE_OSC}
+
+
+@app.route("/api/qlab")
+def api_qlab():
+    """Everything QLab needs: where to send OSC, and the address for each cue in
+    the active workspace (Option 2 -- one address per named cue)."""
+    ws = active_workspace()
+    prefix = osc_prefix()
+    cues = []
+    for cid in ws["order"]:
+        c = ws["cues"].get(cid)
+        if not c:
+            continue
+        cues.append({"id": cid, "name": c["name"], "type": c["type"],
+                     "pushed": bool(c.get("pushed")),
+                     "address": f"{prefix}/cue/{ws['id']}/{cid}"})
+    return jsonify({
+        "osc": osc_status(),
+        "host": local_ip(),
+        "workspace": {"id": ws["id"], "name": ws["name"]},
+        "control": {k: f"{prefix}/{k}" for k in ("black", "clear", "stop")},
+        "cues": cues,
+    })
+
+
+@app.route("/api/qlab/osc", methods=["POST"])
+def api_qlab_osc():
+    """Enable/disable the bridge or change its port/prefix, then (re)start it."""
+    data = request.json or {}
+    s = osc_settings()
+    if "enabled" in data:
+        s["enabled"] = bool(data["enabled"])
+    if "port" in data:
+        try:
+            s["port"] = int(data["port"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "port must be a number"}), 400
+    if "prefix" in data:
+        p = str(data["prefix"]).strip() or DEFAULT_OSC_PREFIX
+        s["prefix"] = "/" + p.strip("/")
+    save_settings()
+    start_osc()
+    return jsonify({"ok": True, "osc": osc_status()})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="../config/wall.example.json")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=5000)
+    ap.add_argument("--osc-port", type=int, default=None,
+                    help=f"UDP port for the QLab OSC bridge (default {DEFAULT_OSC_PORT})")
+    ap.add_argument("--no-osc", action="store_true",
+                    help="disable the QLab OSC bridge")
     args = ap.parse_args()
 
     load_config(args.config)
     ensure_store()
     ws = active_workspace()
+
+    s = osc_settings()
+    if args.osc_port is not None:
+        s["port"] = args.osc_port
+    if args.no_osc:
+        s["enabled"] = False
+    save_settings()
+
     print("=" * 60)
     print("Video Hive Hub")
     print("=" * 60)
@@ -986,8 +1200,12 @@ def main():
     print(f"Layout    : {STATE['config']['layout']}")
     print(f"Nodes     : {len(STATE['config']['nodes'])}")
     print(f"Workspace : {ws['name']} ({len(ws['cues'])} cues)")
+    st = osc_status()
+    print(f"QLab OSC  : {'udp/%d %s' % (st['port'], st['prefix']) if st['enabled'] else 'disabled'}"
+          f"{'' if st['available'] else '  (python-osc not installed)'}")
     print(f"Open      : http://localhost:{args.port}")
     print("=" * 60)
+    start_osc()
     app.run(host=args.host, port=args.port)
 
 

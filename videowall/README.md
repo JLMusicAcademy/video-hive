@@ -126,6 +126,33 @@ already local, the only realtime work is a local `loadfile` — sub-millisecond.
 **Requirement:** keep node clocks tight with NTP on the LAN (PTP for the
 tightest sync), and use wired Gigabit.
 
+## Run the show from QLab (OSC bridge)
+
+Build the wall in Video Hive, then run the show from QLab. The hub listens for
+OSC and each cue has **its own address** (one address per named cue), so QLab
+owns the order and the address says exactly what to show — there's no shared
+playhead to drift if you reorder, insert, disable, or jump cues in QLab.
+
+On the **QLab** tab the hub shows where to send OSC (its LAN IP + UDP port) and
+the address for every cue in the active workspace, e.g.:
+
+```
+/videohive/cue/<workspace>/<cue_id>     # fire that exact cue
+/videohive/cue/<cue_id>                 # short form: cue in the active workspace
+/videohive/black   /videohive/clear   /videohive/stop
+```
+
+In QLab, add a **Network (OSC)** cue per Video Hive cue: set its destination to
+the hub's IP and port (shown on the tab) and its message to that cue's address.
+GO in QLab → the hub fires the cue with the same wall-clock-synchronized
+`show_at` flip as the built-in GO, so the hub hop adds only a tiny constant lead,
+not desync. Copy buttons (and *Copy all addresses*) make wiring QLab quick.
+
+The bridge is **on by default** (UDP `53000`, prefix `/videohive`); toggle it,
+change the port, or change the prefix on the QLab tab, or from the CLI with
+`--osc-port N` / `--no-osc`. It needs `python-osc` (in `requirements.txt`); if
+that isn't installed the hub still runs and the bridge reports as unavailable.
+
 ## Bezel handling & rotation
 
 Set on the **Wall** tab (persisted in the config as `bezel_comp`). Set each
@@ -204,13 +231,15 @@ node or a dedicated output) to avoid duplicate playback.
 Working prototype: **images + pre-processed video**, organized into
 **workspaces** (named cue sets) on a single QLab-style page (Edit/Show modes,
 GO + standby, build → push readiness gate), with a per-workspace image
-**library** and **default image**, on a Pi-class hub. Verified end-to-end
-(slicing, bezel comp & toggle, compose, build/push state, workspace isolation,
-default-image fill, synchronized fire) with headless nodes.
+**library** and **default image**, plus a **QLab OSC bridge** (one address per
+cue), on a Pi-class hub. Verified end-to-end (slicing, bezel comp & toggle,
+compose, build/push state, workspace isolation, default-image fill, synchronized
+fire, and OSC-fired cues + control) with headless nodes.
 
 Not yet built (candidate next steps):
 
-- **QLab bridge** — OSC listener so a QLab Network cue fires a wall cue.
+- **Auto-create QLab cues** — push the Network cues into QLab over its OSC API
+  (build, don't hand-wire). The bridge addresses above are ready for it.
 - Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
 - Re-edit a compose cue from its saved assignment; audio routing.
 

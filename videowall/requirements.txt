@@ -3,6 +3,7 @@ Flask>=2.0
 flask-cors>=3.0
 requests>=2.25
 Pillow>=9.0
+python-osc>=1.8    # QLab -> hub OSC bridge (optional; bridge auto-disables if absent)
 
 # Nodes
 # Flask (above) is reused by the node HTTP server.
