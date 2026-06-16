@@ -25,33 +25,36 @@ pre-production, then fire lightweight cues at show time.**
      cue library on local disk (survives reboot)  fire-by-ID
 ```
 
-## The two phases
+## Workflow: Build → Push → Run (QLab-style)
 
-**Build (pre-production).** Author one master at the format the hub tells you
-(see *Authoring target* below). Give it a cue name, pick a mode, and **Build +
-Distribute**. The hub slices the master (with bezel compensation), and pushes
-each panel's slice to its node, filed under the cue ID. This is the only time
-media crosses the LAN. The node stores cues on disk and reloads them on boot, so
-a built show is ready immediately after a restart.
+Everything lives on one **Workspace** page — a workspace is a named, ordered set
+of cues (QLab's "workspace"). Toggle **Edit / Show** mode at the top.
 
-**Fire (show time).** Firing a cue sends every TV only a tiny "show cue N"
-command — no media moves, so the flip is near-instant. The command carries a
-single wall-clock `show_at` timestamp so all panels change in unison (see
-*Synchronized flips*).
+**Build (Edit mode).** Add a cue, give it a name, pick a mode, choose your
+image/video, and **Build**. The hub slices the master (with the chosen bezel
+handling) and stores each panel's piece on the hub. The cue is now a **Draft**.
 
-## Shows, library & default image
+**Push (pre-production).** **Push** a cue (or **Push all**) to send its pre-built
+pieces to the display clients. A pushed cue is **Ready**. This is the only time
+media crosses the LAN. Editing/re-building a cue makes it a Draft again. Nodes
+keep pushed cues on disk and reload them on boot.
 
-- **Shows.** A *show* is a named, ordered set of cues. Create unlimited shows in
-  the **Shows** tab, open one to work on it (cues you build go into the open
-  show), and switch freely — each show keeps its own cues. **Distribute whole
-  show** pushes every cue's pre-built pieces to the TVs at once (run it before
-  the show, or again after a reboot / TV swap). Shows persist on the hub disk.
+**Run.** A **standby** pointer marks the next cue. **GO** (button or Spacebar)
+fires the standby cue — a tiny wall-clock-synchronized command, no media moves,
+so the flip is near-instant — then advances to the next cue. **GO only fires
+Ready cues**; a Draft on standby is blocked until you push it. In **Show** mode
+the editor is hidden and the cue list is locked for walking the show live.
+
+## Workspaces, library & default image
+
+- **Workspaces.** Create unlimited workspaces; open one to work on it (cues go
+  into the open workspace), switch freely — each keeps its own cues. Persisted on
+  the hub disk.
 - **Image library.** Reusable images stored on the hub (**Library** tab),
-  **organized per show** — pick a show to see only its images (the built-in
-  **Black** rectangle is global and shown for every show). Upload by drag &
-  drop or browse. Library images can be used as compose sources and as the
-  default fill.
-- **Default image.** Each show has a default image (Black unless you change it)
+  **organized per workspace** — pick a workspace to see only its images (the
+  built-in **Black** rectangle is global, shown for every workspace). Upload by
+  drag & drop or browse. Usable as compose sources and as the default fill.
+- **Default image.** Each workspace has a default image (Black unless changed)
   used for any panel a cue doesn't assign — so a cue always defines the whole
   wall.
 
@@ -144,9 +147,9 @@ python node.py --id tv00 --port 8001 --rotation 0      # landscape
 python node.py --id tv04 --port 8005 --rotation 90     # portrait mount
 ```
 
-Map each grid cell to a TV's host/port in the **Grid Config** tab (or the config
-`nodes` block, `"row,col": {host, port}`). The **Identify** button flashes a
-cell's label on that TV so you can confirm placement.
+Map each grid cell to a TV's host/port in the **Wall** tab's *TV placement* (or
+the config `nodes` block, `"row,col": {host, port}`). The **Identify** button
+flashes a cell's label on that TV so you can confirm placement.
 
 ## Test on a single machine (no Pis, no display)
 
@@ -155,36 +158,37 @@ can verify slicing, distribution, persistence and orchestration anywhere.
 
 ```bash
 cd node
-for p in 8001 8002 8003 8004; do
+for p in 8001 8002 8003 8004 8005; do
   python node.py --id n$p --port $p --headless --media-dir /tmp/n$p & done
 cd ../hub && python hub.py --config ../config/wall.example.json &
-# open http://localhost:5000 -> pick 2x2 -> Build tab: drop an image, Build
-# -> Show tab: Fire the cue
+# open http://localhost:5000 -> Workspace: Add cue, choose an image, Build,
+# then Push, then GO
 ```
 
-The **Preview** button (Build tab) renders a mockup of the whole wall
-*including* bezel gaps, so you can confirm continuity before distributing.
+The cue editor shows a live **TV-grid preview** of how each panel will display
+the cue before you build/push.
 
 ## Pre-processed video
 
-In the Build tab, choose a video master and **Build + Distribute**. The hub
-tiles it with ffmpeg (`crop`) into one silent file per panel and distributes
-them under a cue ID (runs offline; progress shown). Fire it like any cue — every
-node starts its tile on the same frame. Audio is stripped from tiles; route
-sound separately (one node or a dedicated output) to avoid duplicate playback.
+In the cue editor, choose a video master and **Build**. The hub tiles it with
+ffmpeg (`crop`) into one silent file per panel (runs offline; progress shown),
+then **Push** distributes them. Fire it like any cue — every node starts its tile
+on the same frame. Audio is stripped from tiles; route sound separately (one
+node or a dedicated output) to avoid duplicate playback.
 
 ## Status / scope
 
-Working prototype: **images + pre-processed video**, organized into **shows**
-(named cue sets) with an image **library** and per-show **default image**,
-build-once / fire-by-cue, on a Pi-class hub. Verified end-to-end (slicing, bezel
-comp, compose, distribution, disk persistence, show isolation, custom default
-image, synchronized fire) with headless nodes.
+Working prototype: **images + pre-processed video**, organized into
+**workspaces** (named cue sets) on a single QLab-style page (Edit/Show modes,
+GO + standby, build → push readiness gate), with a per-workspace image
+**library** and **default image**, on a Pi-class hub. Verified end-to-end
+(slicing, bezel comp & toggle, compose, build/push state, workspace isolation,
+default-image fill, synchronized fire) with headless nodes.
 
 Not yet built (candidate next steps):
 
 - **QLab bridge** — OSC listener so a QLab Network cue fires a wall cue.
 - Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
-- Pre-decode on stage; audio routing; cue reordering UI.
+- Cue drag-reorder; re-edit a compose cue from its saved assignment; audio routing.
 - Separate runtime config from the shipped example so running the hub doesn't
   mutate `wall.example.json`.

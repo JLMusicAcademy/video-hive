@@ -7,18 +7,16 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-         background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#fdf2f8 100%);
-         color:#1e293b; min-height:100vh; }
-  .topbar { position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:12px; padding:14px 18px;
-            background:rgba(255,255,255,0.8); backdrop-filter:blur(8px); border-bottom:1px solid #eef1f6; flex-wrap:wrap; }
-  h1 { font-size:20px; font-weight:700; letter-spacing:-0.4px; }
+         background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#fdf2f8 100%); color:#1e293b; min-height:100vh; }
+  .topbar { position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:12px; padding:12px 18px;
+            background:rgba(255,255,255,0.82); backdrop-filter:blur(8px); border-bottom:1px solid #eef1f6; flex-wrap:wrap; }
+  h1 { font-size:19px; font-weight:700; letter-spacing:-0.4px; }
   .sub { color:#64748b; font-size:13px; }
   .grow { flex:1; }
   .pill { display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:#eef2ff; color:#4338ca; margin-left:4px; font-weight:600; }
-  .pill.show { background:#ede9fe; color:#6d28d9; }
   .hamburger { background:#fff; border:1px solid #e9edf3; border-radius:12px; width:44px; height:44px; font-size:18px; cursor:pointer;
-               box-shadow:0 2px 8px rgba(15,23,42,0.06); display:flex; align-items:center; justify-content:center; }
-  .content { max-width:1100px; margin:0 auto; padding:22px 18px 60px; }
+               box-shadow:0 2px 8px rgba(15,23,42,0.06); }
+  .content { max-width:1080px; margin:0 auto; padding:20px 18px 70px; }
 
   .backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.35); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
   .backdrop.open { opacity:1; pointer-events:auto; }
@@ -30,29 +28,63 @@
   .navitem:hover { background:#f1f5f9; }
   .navitem.active { background:#eef2ff; color:#4338ca; }
 
-  .card { background:#fff; border:1px solid #eef1f6; border-radius:18px; box-shadow:0 12px 34px rgba(15,23,42,0.07); padding:22px; }
-  .card h2 { font-size:18px; font-weight:700; margin-bottom:6px; }
+  .card { background:#fff; border:1px solid #eef1f6; border-radius:18px; box-shadow:0 12px 34px rgba(15,23,42,0.07); padding:20px; }
+  .card h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
   label { display:block; font-size:13px; color:#64748b; margin:12px 0 5px; font-weight:500; }
   select,input[type=text],input[type=number],input[type=file] {
-    width:100%; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; color:#1e293b; font-size:14px;
-    transition:border-color .15s, box-shadow .15s; }
+    width:100%; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; color:#1e293b; font-size:14px; }
   select:focus,input:focus { outline:none; border-color:#a5b4fc; box-shadow:0 0 0 4px rgba(165,180,252,0.25); }
-  .btn { padding:11px 16px; border:none; border-radius:14px; font-size:14px; font-weight:600; cursor:pointer; margin-top:12px;
-         transition:transform .12s, box-shadow .12s, background .15s; }
+  .btn { padding:10px 15px; border:none; border-radius:13px; font-size:14px; font-weight:600; cursor:pointer; transition:transform .12s, background .15s; }
   .btn:hover { transform:translateY(-1px); }
-  .btn-primary { background:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.35); }
-  .btn-primary:hover { background:#4f46e5; }
-  .btn-go { background:#22c55e; color:#fff; box-shadow:0 8px 18px rgba(34,197,94,0.35); }
-  .btn-go:hover { background:#16a34a; }
-  .btn-secondary { background:#f1f5f9; color:#334155; box-shadow:0 3px 8px rgba(15,23,42,0.06); }
-  .btn-secondary:hover { background:#e2e8f0; }
-  .btn-danger { background:#ef4444; color:#fff; box-shadow:0 8px 18px rgba(239,68,68,0.30); }
-  .btn-danger:hover { background:#dc2626; }
-  .btn-row { display:flex; gap:10px; flex-wrap:wrap; } .btn-row .btn { flex:1; min-width:120px; }
-  .layouts { display:flex; gap:8px; flex-wrap:wrap; }
-  .lay { padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600;
-         box-shadow:0 2px 6px rgba(15,23,42,0.05); }
-  .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; box-shadow:0 6px 14px rgba(99,102,241,0.35); }
+  .btn-primary { background:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.32); } .btn-primary:hover{background:#4f46e5;}
+  .btn-go { background:#22c55e; color:#fff; box-shadow:0 8px 18px rgba(34,197,94,0.32); } .btn-go:hover{background:#16a34a;}
+  .btn-secondary { background:#f1f5f9; color:#334155; box-shadow:0 3px 8px rgba(15,23,42,0.06); } .btn-secondary:hover{background:#e2e8f0;}
+  .btn-danger { background:#ef4444; color:#fff; box-shadow:0 8px 18px rgba(239,68,68,0.28); } .btn-danger:hover{background:#dc2626;}
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; } .btn-row .btn { flex:1; min-width:110px; }
+
+  /* workspace bar */
+  .wsbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .wsbar select { width:auto; min-width:180px; font-weight:600; }
+  .modeswitch { display:inline-flex; background:#eef2f7; border-radius:999px; padding:3px; }
+  .modeswitch button { border:none; background:transparent; padding:7px 16px; border-radius:999px; font-weight:700; cursor:pointer; color:#64748b; font-size:13px; }
+  .modeswitch button.on { background:#fff; color:#4338ca; box-shadow:0 2px 6px rgba(15,23,42,0.1); }
+
+  .gobar { display:flex; gap:14px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+  .gobtn { width:96px; height:96px; border-radius:22px; border:none; background:#22c55e; color:#fff; font-size:26px; font-weight:800; cursor:pointer;
+           box-shadow:0 12px 26px rgba(34,197,94,0.4); transition:transform .1s; }
+  .gobtn:active { transform:scale(0.96); }
+  .gobtn:disabled { background:#cbd5e1; box-shadow:none; cursor:not-allowed; }
+  .standby { flex:1; min-width:200px; }
+  .standby .lbl { font-size:12px; color:#64748b; }
+  .standby .nm { font-size:20px; font-weight:700; }
+
+  .cuelist { margin-top:16px; border:1px solid #eef1f6; border-radius:14px; overflow:hidden; }
+  .cuehead, .cuerow { display:grid; grid-template-columns:26px 40px 1fr 130px 70px 96px; gap:8px; align-items:center; padding:10px 12px; }
+  .cuehead { background:#f8fafc; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .cuerow { border-top:1px solid #f1f5f9; cursor:pointer; }
+  .cuerow:hover { background:#f8fafc; }
+  .cuerow.sel { background:#eef2ff; }
+  .cuerow.standby { box-shadow:inset 3px 0 0 #6366f1; }
+  .cuerow .nm { font-weight:600; }
+  .cuerow .mt { font-size:12px; color:#64748b; }
+  .ptr { color:#6366f1; font-weight:800; }
+  .status { font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; text-align:center; }
+  .status.ready { background:#dcfce7; color:#15803d; } .status.draft { background:#fef3c7; color:#b45309; }
+  .rowbtns { display:flex; gap:6px; justify-content:flex-end; }
+  .iconbtn { border:none; background:#f1f5f9; border-radius:9px; width:30px; height:30px; cursor:pointer; font-size:13px; }
+  .iconbtn.fire { background:#dcfce7; } .iconbtn.del { background:#fee2e2; }
+
+  .editor { margin-top:16px; border:1px dashed #c7d2fe; border-radius:16px; padding:18px; background:#fbfcff; }
+  .tvwrap { margin-top:12px; overflow-x:auto; background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:14px; }
+  .tvgrid { display:grid; gap:12px; min-width:min-content; }
+  .tv { display:flex; flex-direction:column; align-items:center; }
+  .tv-screen { width:100%; aspect-ratio:16/9; background:#000; border:5px solid #1e293b; border-radius:8px; overflow:hidden; display:flex;
+               align-items:center; justify-content:center; color:#475569; font-size:11px; box-shadow:0 6px 16px rgba(15,23,42,0.25); }
+  .tv.portrait .tv-screen { aspect-ratio:9/16; }
+  .tv-screen img { width:100%; height:100%; object-fit:fill; display:block; }
+  .tv-label { font-size:11px; color:#64748b; margin-top:5px; font-weight:600; }
+  .tv-stand { width:24%; height:6px; background:#cbd5e1; border-radius:0 0 4px 4px; }
+
   .grid { display:grid; gap:6px; margin-top:14px; background:#eef2f7; padding:6px; border-radius:14px; overflow-x:auto; }
   .panel { background:#fff; border:1px solid #e2e8f0; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
            font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; min-width:64px; }
@@ -62,42 +94,28 @@
   .dot.online { background:#22c55e; } .dot.offline { background:#f87171; }
   .target { background:#f1f5ff; border:1px solid #e0e7ff; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; color:#3730a3; }
   .target b { color:#4338ca; }
-  .item { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:12px 14px; margin-bottom:10px;
-          display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
-  .item.active { border-color:#a5b4fc; background:#f5f3ff; }
-  .item .nm { font-weight:700; } .item .mt { font-size:11px; color:#64748b; }
-  .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px;
-         padding:12px; margin-top:14px; max-height:130px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
+  .layouts { display:flex; gap:8px; flex-wrap:wrap; }
+  .lay { padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600; box-shadow:0 2px 6px rgba(15,23,42,0.05); }
+  .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; }
   .gc { display:grid; grid-template-columns:auto 1fr 84px auto; gap:8px; align-items:center; margin-top:8px; }
   .gc input { padding:8px; }
-  .tvwrap { margin-top:12px; overflow-x:auto; background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:14px; }
-  .tvgrid { display:grid; gap:12px; min-width:min-content; }
-  .tv { display:flex; flex-direction:column; align-items:center; }
-  .tv-screen { width:100%; aspect-ratio:16/9; background:#000; border:5px solid #1e293b; border-radius:8px;
-               box-shadow:0 6px 16px rgba(15,23,42,0.25); overflow:hidden; display:flex; }
-  .tv.portrait .tv-screen { aspect-ratio:9/16; }
-  .tv-screen img { width:100%; height:100%; object-fit:fill; display:block; }
-  .tv-label { font-size:11px; color:#64748b; margin-top:5px; font-weight:600; }
-  .tv-stand { width:24%; height:6px; background:#cbd5e1; border-radius:0 0 4px 4px; }
+  .item { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .item.active { border-color:#a5b4fc; background:#f5f3ff; }
   .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:14px; }
   .libcell { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:8px; text-align:center; }
   .libcell img { width:100%; height:76px; object-fit:cover; border-radius:8px; background:#000; }
   .libcell .ln { font-size:12px; margin-top:6px; color:#334155; font-weight:600; word-break:break-word; }
-  .showpick { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:14px; padding:14px; }
-  .showpick label { margin-top:0; color:#6d28d9; }
-  .dropzone { border:2px dashed #c7d2fe; border-radius:16px; padding:30px 16px; text-align:center; color:#64748b; background:#f8fafc;
-              margin-top:8px; transition:.15s; cursor:pointer; }
+  .dropzone { border:2px dashed #c7d2fe; border-radius:16px; padding:26px 16px; text-align:center; color:#64748b; background:#f8fafc; margin-top:8px; cursor:pointer; }
   .dropzone.drag { border-color:#6366f1; background:#eef2ff; color:#4338ca; }
   .link { color:#4f46e5; font-weight:700; text-decoration:underline; }
+  .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px; padding:12px; margin-top:14px; max-height:120px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
 
   @media (max-width:760px){
-    .content { padding:16px 12px 60px; }
-    h1 { font-size:18px; }
-    .hidexs { display:none; }
-    .card { padding:16px; border-radius:14px; }
-    .gc { grid-template-columns:auto 1fr; }
-    .gc .btn { grid-column:1 / -1; }
-    .tvgrid { grid-template-columns:repeat(var(--cols,3),minmax(96px,1fr)) !important; }
+    .content { padding:14px 12px 70px; }
+    .card { padding:15px; }
+    .cuehead, .cuerow { grid-template-columns:22px 30px 1fr 64px; }
+    .col-type, .col-panels { display:none; }
+    .gc { grid-template-columns:auto 1fr; } .gc .btn{ grid-column:1/-1; }
     .sidebar { width:84vw; max-width:300px; }
   }
 </style>
@@ -106,27 +124,101 @@
 <button class="backdrop" id="backdrop" onclick="closeDrawer()"></button>
 <nav class="sidebar" id="sidebar">
   <div class="brand">🐝 Video Hive</div>
-  <div class="navitem active" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
-  <div class="navitem" data-nav="build" onclick="tab('build')">🛠 Build</div>
-  <div class="navitem" data-nav="run" onclick="tab('run')">▶ Run</div>
-  <div class="navitem" data-nav="shows" onclick="tab('shows')">🎬 Shows</div>
+  <div class="navitem active" data-nav="workspace" onclick="tab('workspace')">🎬 Workspace</div>
+  <div class="navitem" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
   <div class="navitem" data-nav="library" onclick="tab('library')">🖼 Library</div>
 </nav>
 
 <div class="topbar">
   <button class="hamburger" onclick="openDrawer()">☰</button>
-  <h1 id="paneTitle">Wall</h1>
+  <h1 id="paneTitle">Workspace</h1>
   <div class="grow"></div>
-  <span class="sub hidexs">Show</span><span id="curShow" class="pill show">—</span>
-  <span class="sub hidexs" style="margin-left:6px">Wall</span><span id="curLayout" class="pill">—</span>
-  <button class="btn btn-secondary" style="margin:0;padding:8px 12px;margin-left:8px" onclick="refresh()">⟳</button>
+  <span class="sub" id="hLayout"></span>
+  <button class="btn btn-secondary" style="padding:8px 12px" onclick="refresh()">⟳</button>
 </div>
 
 <div class="content">
+  <!-- WORKSPACE -->
+  <div class="card tabpane" data-pane="workspace">
+    <div class="wsbar">
+      <select id="wsSel" onchange="switchWorkspace(this.value)"></select>
+      <button class="btn btn-secondary" onclick="newWorkspace()">＋ New</button>
+      <div class="grow"></div>
+      <div class="modeswitch">
+        <button id="modeEdit" class="on" onclick="setMode('edit')">Edit</button>
+        <button id="modeShow" onclick="setMode('show')">Show</button>
+      </div>
+    </div>
+
+    <div class="gobar">
+      <button class="gobtn" id="goBtn" onclick="go()">GO</button>
+      <div class="standby">
+        <div class="lbl">STANDBY (Spacebar or GO fires this)</div>
+        <div class="nm" id="standbyNm">—</div>
+        <div class="sub" id="standbyHint"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-primary" onclick="pushAll()">⤓ Push all to displays</button>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="control('black')">⬛ Black</button>
+          <button class="btn btn-secondary" onclick="control('clear')">✕ Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cuelist" id="cueListWrap">
+      <div class="cuehead">
+        <div></div><div>#</div><div>Name</div>
+        <div class="col-type">Type</div><div class="col-panels">Panels</div><div>Status</div>
+      </div>
+      <div id="cueRows"></div>
+    </div>
+    <button class="btn btn-secondary" id="addCueBtn" style="margin-top:12px" onclick="newCue()">＋ Add cue</button>
+
+    <!-- CUE EDITOR (edit mode) -->
+    <div class="editor" id="cueEditor" style="display:none">
+      <h2 id="editorTitle">New cue</h2>
+      <label>Cue name</label>
+      <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
+      <label>Mode</label>
+      <select id="buildMode" onchange="onModeChange()">
+        <option value="span">span — one master across the whole grid</option>
+        <option value="mirror">mirror — same image on every panel</option>
+        <option value="solo">solo — one image to one panel</option>
+        <option value="compose">compose — mix slices, full images &amp; default per panel</option>
+      </select>
+      <div id="simpleBuild">
+        <label>Master file (image or video)</label>
+        <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
+      </div>
+      <div id="soloPick" style="display:none">
+        <label>Target panel</label>
+        <select id="soloTarget" onchange="updatePreview()"></select>
+      </div>
+      <div id="composeEditor" style="display:none">
+        <label>Add source images (Library &amp; Default always available)</label>
+        <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
+        <div id="composeTray" class="sub" style="margin-top:6px"></div>
+        <div id="composeGrid" style="margin-top:8px"></div>
+      </div>
+      <label style="margin-top:12px">Preview — how each TV will display this cue</label>
+      <div class="tvwrap"><div id="cueTv" class="sub">Pick an image to preview, or Build.</div></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="buildCue()">⤓ Build</button>
+        <button class="btn btn-go" id="pushCueBtn" onclick="pushCue()" style="display:none">⤴ Push</button>
+        <button class="btn btn-secondary" id="testFireBtn" onclick="testFire()" style="display:none">▶ Test</button>
+        <button class="btn btn-danger" id="delCueBtn" onclick="deleteCue()" style="display:none">✕ Delete</button>
+      </div>
+      <div id="buildStatus" class="sub" style="margin-top:8px"></div>
+    </div>
+
+    <div class="log" id="log">ready.</div>
+  </div>
+
   <!-- WALL -->
-  <div class="card tabpane" data-pane="wall">
+  <div class="card tabpane" data-pane="wall" style="display:none">
     <h2>Wall — define the grid</h2>
-    <div class="sub">Choose the layout, how content fits, and which TV sits in each cell.</div>
+    <div class="sub">Choose the layout, how content fits, bezel handling, and which TV sits in each cell.</div>
     <label>Layout</label>
     <div class="layouts" id="layouts"></div>
     <label>Fit (how a master maps onto the wall)</label>
@@ -135,10 +227,10 @@
       <option value="contain">contain — whole image, letterbox</option>
       <option value="stretch">stretch — distort to fill</option>
     </select>
-    <label>Bezel handling (how seams are treated)</label>
+    <label>Bezel handling</label>
     <select id="bezel" onchange="setBezel()">
-      <option value="1">Compensate — continuous image, hides slivers behind bezels (best for photo/video)</option>
-      <option value="0">Show everything — no content lost, lines jump at seams (best for text/graphics)</option>
+      <option value="1">Compensate — continuous image, hides slivers behind bezels (photo/video)</option>
+      <option value="0">Show everything — no content lost, lines jump at seams (text/graphics)</option>
     </select>
     <div class="grid" id="wallGrid"></div>
     <div class="target" id="authoring"></div>
@@ -147,81 +239,14 @@
     <button class="btn btn-primary" onclick="saveNodes()">💾 Save TV placement</button>
   </div>
 
-  <!-- BUILD -->
-  <div class="card tabpane" data-pane="build" style="display:none">
-    <div class="showpick">
-      <label>Building into show</label>
-      <select id="buildShowSel" onchange="switchShow(this.value)"></select>
-    </div>
-    <h2 style="margin-top:16px">Build a cue</h2>
-    <label>Cue name / ID</label>
-    <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
-    <label>Mode</label>
-    <select id="buildMode" onchange="onModeChange()">
-      <option value="span">span — one master across the whole grid</option>
-      <option value="mirror">mirror — same image on every panel</option>
-      <option value="solo">solo — one image to one panel</option>
-      <option value="compose">compose — mix slices, full images &amp; default per panel</option>
-    </select>
-    <div id="simpleBuild">
-      <label>Master file (image or video)</label>
-      <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
-    </div>
-    <div id="soloPick" style="display:none">
-      <label>Target panel</label>
-      <select id="soloTarget" onchange="updatePreview()"></select>
-    </div>
-    <div id="composeEditor" style="display:none">
-      <label>Add source images for this cue (Library &amp; Default always available)</label>
-      <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
-      <div id="composeTray" class="sub" style="margin-top:6px"></div>
-      <div class="sub" style="margin-top:8px">Per panel pick a source + Slice/Full. <b>Slice</b> uses the full-grid geometry, so one image stays aligned across whatever panels share it.</div>
-      <div id="composeGrid" style="margin-top:8px"></div>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="updatePreview()">👁 Refresh preview</button>
-      <button class="btn btn-primary" onclick="buildCue()">⤓ Build + Add to show</button>
-    </div>
-    <div id="buildStatus" class="sub" style="margin-top:8px"></div>
-    <label style="margin-top:14px">Live preview — how each TV will display this cue</label>
-    <div class="tvwrap"><div id="tvPreview" class="sub">Pick an image to see the wall build.</div></div>
-  </div>
-
-  <!-- RUN -->
-  <div class="card tabpane" data-pane="run" style="display:none">
-    <h2>Cues — <span id="runShow"></span></h2>
-    <div class="sub">Fire sends only a command; media is already on each TV.</div>
-    <div id="cueList" style="margin-top:14px"></div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="control('black')">⬛ Black</button>
-      <button class="btn btn-secondary" onclick="control('stop')">⏸ Stop</button>
-      <button class="btn btn-danger" onclick="control('clear')">✕ Clear</button>
-    </div>
-    <div class="log" id="log">ready.</div>
-  </div>
-
-  <!-- SHOWS -->
-  <div class="card tabpane" data-pane="shows" style="display:none">
-    <h2>Shows</h2>
-    <div class="sub">A show is a set of cues. Create unlimited shows; open one to work on it.</div>
-    <label>New show name</label>
-    <div style="display:flex;gap:10px">
-      <input type="text" id="newShow" placeholder="e.g. Spring Gala">
-      <button class="btn btn-primary" style="margin:0;white-space:nowrap" onclick="createShow()">＋ Create</button>
-    </div>
-    <div id="showList" style="margin-top:16px"></div>
-    <label>Default image for unassigned panels (this show)</label>
-    <select id="defaultImg" onchange="setDefaultImage()"></select>
-    <button class="btn btn-go" onclick="distributeShow()">⤓ Distribute whole show to TVs</button>
-    <div class="sub" style="margin-top:6px">Pushes every cue's pre-built pieces to each TV (run before the show, or after a reboot/TV swap).</div>
-  </div>
-
   <!-- LIBRARY -->
   <div class="card tabpane" data-pane="library" style="display:none">
     <h2>Image Library</h2>
-    <div class="sub">Images are organized by show. <b>Black</b> is built in and available to every show.</div>
-    <label>Show</label>
-    <select id="libShowSel" onchange="loadLibraryTab()"></select>
+    <div class="sub">Images are organized by workspace. <b>Black</b> is built in and available to every workspace.</div>
+    <label>Workspace</label>
+    <select id="libWsSel" onchange="loadLibraryTab()"></select>
+    <label>Default fill image (for unassigned panels in this workspace)</label>
+    <select id="defaultImg" onchange="setDefaultImage()"></select>
     <div class="dropzone" id="dropzone" onclick="document.getElementById('libFile').click()">
       <div style="font-size:24px">⬆️</div>
       <div>Drag &amp; drop images here, or <span class="link">browse</span></div>
@@ -233,172 +258,159 @@
 
 <script>
 let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black';
+let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
-const TITLES={wall:'Wall',build:'Build',run:'Run',shows:'Shows',library:'Library'};
+const TITLES={workspace:'Workspace',wall:'Wall',library:'Library'};
 function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
 function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
 function tab(name){
   document.querySelectorAll('.navitem').forEach(t=>t.classList.toggle('active',t.dataset.nav===name));
   document.querySelectorAll('.tabpane').forEach(p=>p.style.display=p.dataset.pane===name?'block':'none');
   document.getElementById('paneTitle').textContent=TITLES[name]||name;
+  if(name==='workspace'){ loadWorkspace(); }
   if(name==='wall'){ renderGrid(); renderGridConfig(); }
-  if(name==='build'){ loadShowSelector(); loadActiveLib(); }
-  if(name==='run'){ loadCues(); }
-  if(name==='shows'){ loadShows(); }
   if(name==='library'){ loadLibraryTab(); }
   closeDrawer();
 }
 
 async function loadState(){
   S=await (await fetch('/api/state')).json();
-  document.getElementById('curShow').textContent=S.active_show.name;
-  document.getElementById('runShow').textContent=S.active_show.name;
-  document.getElementById('curLayout').textContent=S.layout;
+  document.getElementById('hLayout').textContent=S.active_workspace.name+' · '+S.layout;
   document.getElementById('fit').value=S.fit;
   document.getElementById('bezel').value=S.bezel_comp?'1':'0';
   document.getElementById('layouts').innerHTML=S.layouts.map(l=>
     `<div class="lay ${l===S.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
-  const a=S.authoring, comp=S.bezel_comp;
-  const main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
+  const a=S.authoring, comp=S.bezel_comp, main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${main.w}×${main.h}px</b> (${main.aspect}, ${comp?'bezel-compensated':'no bezel comp'})`+
     `<br><span class="sub">other mode: ${alt.w}×${alt.h}px (${alt.aspect})</span>`;
-  let opts='';
-  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
+  let opts=''; for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;
-  document.documentElement.style.setProperty('--cols',S.cols);
   renderGrid();
-}
-function renderGrid(){
-  const g=document.getElementById('wallGrid'); if(!g||!S) return;
-  g.style.gridTemplateColumns=`repeat(${S.cols},minmax(64px,1fr))`;
-  const portrait=S.orientation==='portrait'; let h='';
-  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
-    const key=`${r},${c}`, st=nodeStatus[key];
-    const cls=st===undefined?'':(st?'online':'offline');
-    h+=`<div class="panel ${portrait?'portrait':''} ${cls}" title="${key}">${key}<span class="dot ${cls}"></span></div>`;
-  }
-  g.innerHTML=h;
-}
-async function setLayout(l){
-  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l})});
-  await loadState(); await refresh(); renderGridConfig();
-  if(document.getElementById('buildMode').value==='compose') renderComposeGrid();
-  log('layout -> '+l);
-}
-async function setFit(){
-  const fit=document.getElementById('fit').value;
-  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,fit})});
-  await loadState(); log('fit -> '+fit);
-}
-async function setBezel(){
-  const bezel_comp=document.getElementById('bezel').value==='1';
-  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,bezel_comp})});
-  await loadState(); log('bezel compensation -> '+(bezel_comp?'on':'off'));
 }
 async function refresh(){
   const r=await (await fetch('/api/nodes/status')).json();
   nodeStatus={}; for(const k in r) nodeStatus[k]=r[k].online; renderGrid();
 }
 
-// ---- SHOW SELECTOR (Build) ----
-async function loadShowSelector(){
-  const d=await (await fetch('/api/shows')).json();
-  document.getElementById('buildShowSel').innerHTML=d.shows.map(s=>
-    `<option value="${s.id}" ${s.id===d.active?'selected':''}>${s.name} (${s.cues} cues)</option>`).join('');
+// ===== WORKSPACE =====
+async function loadWorkspaceSelector(){
+  const d=await (await fetch('/api/workspaces')).json();
+  document.getElementById('wsSel').innerHTML=d.workspaces.map(w=>
+    `<option value="${w.id}" ${w.id===d.active?'selected':''}>${w.name} (${w.cues})</option>`).join('');
 }
-async function switchShow(id){
-  await fetch('/api/show/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  await loadState(); await loadActiveLib();
-  if(document.getElementById('buildMode').value==='compose') renderComposeGrid();
-  log('building into '+id);
+async function loadWorkspace(){
+  await loadWorkspaceSelector(); await loadActiveLib();
+  WS=await (await fetch('/api/workspace')).json();
+  if(!standbyId || !WS.cues.find(c=>c.id===standbyId)) standbyId = WS.cues[0]?.id || null;
+  renderCues(); renderStandby();
 }
-
-// ---- ACTIVE-SHOW LIBRARY (compose sources + default picker) ----
-async function loadActiveLib(){
-  const d=await (await fetch('/api/library?show='+encodeURIComponent(S.active_show.id))).json();
-  LIB=d.images; LIBDEFAULT=d.default;
-  const sel=document.getElementById('defaultImg');
-  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
-}
-
-// ---- LIBRARY TAB (per-show view + drag/drop) ----
-async function loadLibraryTab(){
-  const shows=await (await fetch('/api/shows')).json();
-  const sel=document.getElementById('libShowSel');
-  if(!sel.dataset.init){ sel.dataset.init='1'; }
-  const cur=sel.value || shows.active;
-  sel.innerHTML=shows.shows.map(s=>`<option value="${s.id}" ${s.id===cur?'selected':''}>${s.name}</option>`).join('');
-  const showId=sel.value;
-  const d=await (await fetch('/api/library?show='+encodeURIComponent(showId))).json();
-  document.getElementById('libGrid').innerHTML=Object.entries(d.images).map(([id,m])=>`
-    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}${m.builtin?' ·global':''}</div>
-      ${m.builtin?'<div class="mt sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
+function renderCues(){
+  const el=document.getElementById('cueRows');
+  if(!WS.cues.length){ el.innerHTML='<div class="cuerow"><div></div><div></div><div class="sub">No cues yet. '+(editMode?'Add one below.':'Switch to Edit to add cues.')+'</div></div>'; return; }
+  el.innerHTML=WS.cues.map((c,i)=>`
+    <div class="cuerow ${c.id===selectedCue?'sel':''} ${c.id===standbyId?'standby':''}" onclick="clickCue('${c.id}')">
+      <div class="ptr">${c.id===standbyId?'▶':''}</div>
+      <div>${i+1}</div>
+      <div><div class="nm">${c.name}</div><div class="mt col-type">${c.type} · ${c.mode}</div></div>
+      <div class="col-type">${c.type}/${c.mode}</div>
+      <div class="col-panels">${c.panels.length}</div>
+      <div><span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span></div>
     </div>`).join('');
 }
-function onLibFiles(){ uploadLibFiles(document.getElementById('libFile').files); }
-async function uploadLibFiles(files){
-  const showId=document.getElementById('libShowSel').value;
-  let n=0;
-  for(const f of files){
-    if(!f.type.startsWith('image')) continue;
-    const fd=new FormData(); fd.append('file',f); fd.append('name',f.name.replace(/\.[^.]+$/,'')); fd.append('show',showId);
-    await fetch('/api/library',{method:'POST',body:fd}); n++;
-  }
-  document.getElementById('libFile').value=''; log(n+' image(s) added to '+showId); loadLibraryTab();
+function renderStandby(){
+  const c=WS.cues.find(x=>x.id===standbyId);
+  document.getElementById('standbyNm').textContent=c?c.name:'—';
+  document.getElementById('standbyHint').textContent=c?(c.pushed?'ready to fire':'⚠ draft — push before firing'):'no cue on standby';
+  document.getElementById('goBtn').disabled=!(c&&c.pushed);
 }
-async function delLibrary(id){
-  if(!confirm('Delete library image '+id+'?')) return;
-  const r=await (await fetch('/api/library/'+id,{method:'DELETE'})).json();
-  if(r.error) alert(r.error); else { log('deleted library '+id); loadLibraryTab(); }
+function clickCue(id){
+  standbyId=id;
+  if(editMode){ selectedCue=id; openEditor(id); }
+  renderCues(); renderStandby();
 }
-
-// ---- SHOWS ----
-async function loadShows(){
-  await loadActiveLib();
-  const d=await (await fetch('/api/shows')).json();
-  document.getElementById('showList').innerHTML=d.shows.map(s=>`
-    <div class="item ${s.id===d.active?'active':''}">
-      <div><div class="nm">${s.name}</div><div class="mt">${s.cues} cue(s)${s.id===d.active?' · open':''}</div></div>
-      <div style="display:flex;gap:8px">
-        ${s.id===d.active?'':`<button class="btn btn-primary" style="margin:0;padding:7px 12px" onclick="openShow('${s.id}')">Open</button>`}
-        <button class="btn btn-danger" style="margin:0;padding:7px 12px" onclick="delShow('${s.id}')">✕</button>
-      </div></div>`).join('') || '<div class="sub">No shows yet.</div>';
-}
-async function createShow(){
-  const name=document.getElementById('newShow').value.trim(); if(!name){ alert('Name the show'); return; }
-  await fetch('/api/shows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-  document.getElementById('newShow').value=''; log('created + opened '+name);
-  await loadState(); loadShows();
-}
-async function openShow(id){
-  await fetch('/api/show/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  log('opened show '+id); await loadState(); loadShows();
-}
-async function delShow(id){
-  if(!confirm('Delete show '+id+' and its cues?')) return;
-  await fetch('/api/show/'+id,{method:'DELETE'}); log('deleted show '+id);
-  await loadState(); loadShows();
-}
-async function setDefaultImage(){
-  const v=document.getElementById('defaultImg').value;
-  await fetch('/api/show/default_image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({default_image:v})});
-  log('default image -> '+v); loadState();
-}
-async function distributeShow(){
-  log('distributing show…');
-  const r=await (await fetch('/api/show/distribute',{method:'POST'})).json();
-  log('distributed '+Object.keys(r.distributed||{}).length+' cue(s) to TVs');
+function setMode(m){
+  editMode=(m==='edit');
+  document.getElementById('modeEdit').classList.toggle('on',editMode);
+  document.getElementById('modeShow').classList.toggle('on',!editMode);
+  document.getElementById('addCueBtn').style.display=editMode?'inline-block':'none';
+  document.getElementById('cueEditor').style.display=(editMode&&selectedCue!==null)?'block':'none';
+  if(!editMode){ document.getElementById('cueEditor').style.display='none'; }
+  log('mode: '+m);
 }
 
-// ---- BUILD ----
+async function go(){
+  const c=WS.cues.find(x=>x.id===standbyId);
+  if(!c){ return; }
+  if(!c.pushed){ alert('“'+c.name+'” is a draft — push it to the displays first.'); return; }
+  await fireCue(c.id);
+  // advance standby
+  const i=WS.cues.findIndex(x=>x.id===standbyId);
+  standbyId = WS.cues[i+1]?.id || WS.cues[i]?.id;
+  if(editMode && i+1<WS.cues.length){ selectedCue=standbyId; openEditor(standbyId); }
+  renderCues(); renderStandby();
+}
+async function fireCue(id){
+  const r=await fetch('/api/cue/fire',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:id})});
+  if(r.status===409){ const c=WS.cues.find(x=>x.id===id); log('cannot fire '+id+': not pushed'); alert('“'+(c?c.name:id)+'” must be pushed first.'); return; }
+  const d=await r.json(); log('FIRE '+id+' @ '+(d.show_at?new Date(d.show_at*1000).toLocaleTimeString():'?'));
+}
+async function pushCue(){
+  if(!selectedCue) return;
+  log('pushing '+selectedCue+'…');
+  const r=await (await fetch('/api/cue/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})})).json();
+  log('push '+selectedCue+': '+(r.ok?'ready':'FAILED')); await loadWorkspace(); if(editMode&&selectedCue) openEditor(selectedCue);
+}
+async function pushAll(){
+  log('pushing whole workspace…');
+  const r=await (await fetch('/api/workspace/push',{method:'POST'})).json();
+  const n=Object.values(r.pushed||{}).filter(Boolean).length;
+  log('pushed '+n+' cue(s) ready'); await loadWorkspace();
+}
+async function testFire(){ if(selectedCue) fireCue(selectedCue); }
+
+// ----- workspace CRUD -----
+async function switchWorkspace(id){
+  await fetch('/api/workspace/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
+  await loadState(); await loadWorkspace(); log('opened workspace '+id);
+}
+async function newWorkspace(){
+  const name=prompt('New workspace name:'); if(!name) return;
+  await fetch('/api/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  selectedCue=null; standbyId=null; await loadState(); await loadWorkspace(); log('created workspace '+name);
+}
+
+// ===== CUE EDITOR =====
 let composeImages=[];
-function sourceOptions(){
-  let o=`<option value="default">Default (${(LIB[LIBDEFAULT]||{}).name||'Black'})</option>`;
-  o+=Object.entries(LIB).map(([id,m])=>`<option value="lib:${id}">Lib: ${m.name}</option>`).join('');
-  o+=composeImages.map((f,i)=>`<option value="u:${i}">Upload ${i+1}: ${f.name}</option>`).join('');
-  return o;
+function newCue(){
+  selectedCue=null;
+  document.getElementById('editorTitle').textContent='New cue';
+  document.getElementById('cueName').value='';
+  document.getElementById('buildMode').value='span';
+  document.getElementById('buildFile').value=''; composeImages=[];
+  document.getElementById('composeTray').innerHTML='';
+  document.getElementById('cueTv').innerHTML='<span class="sub">Pick an image to preview, or Build.</span>';
+  ['pushCueBtn','testFireBtn','delCueBtn'].forEach(x=>document.getElementById(x).style.display='none');
+  onModeChange();
+  document.getElementById('cueEditor').style.display='block';
+  document.getElementById('cueEditor').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function openEditor(id){
+  const c=WS.cues.find(x=>x.id===id); if(!c) return;
+  document.getElementById('editorTitle').textContent='Cue · '+c.name;
+  document.getElementById('cueName').value=c.name;
+  document.getElementById('buildMode').value=c.mode==='compose'?'compose':(c.mode);
+  document.getElementById('buildFile').value=''; composeImages=[];
+  document.getElementById('composeTray').innerHTML='';
+  ['pushCueBtn','testFireBtn','delCueBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
+  onModeChange();
+  document.getElementById('cueEditor').style.display='block';
+  // show the cue's built preview
+  const t=await (await fetch('/api/cue/'+id+'/tiles')).json();
+  if(t.type==='video'){ document.getElementById('cueTv').innerHTML='<span class="sub">▶ video cue ('+c.panels.length+' tiles built). Re-pick a video + Build to change.</span>'; }
+  else renderTV('cueTv',t);
 }
 function onModeChange(){
   const mode=document.getElementById('buildMode').value;
@@ -413,9 +425,15 @@ function onComposeFiles(){
   document.getElementById('composeTray').innerHTML=composeImages.map((f,i)=>`<span class="pill">Upload ${i+1}: ${f.name}</span>`).join(' ');
   renderComposeGrid(); updatePreview();
 }
+function sourceOptions(){
+  let o=`<option value="default">Default (${(LIB[LIBDEFAULT]||{}).name||'Black'})</option>`;
+  o+=Object.entries(LIB).map(([id,m])=>`<option value="lib:${id}">Lib: ${m.name}</option>`).join('');
+  o+=composeImages.map((f,i)=>`<option value="u:${i}">Upload ${i+1}: ${f.name}</option>`).join('');
+  return o;
+}
 function renderComposeGrid(){
   if(!S) return;
-  const opts=sourceOptions(); const portrait=S.orientation==='portrait'; let cells='';
+  const opts=sourceOptions(), portrait=S.orientation==='portrait'; let cells='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
     const key=`${r},${c}`;
     cells+=`<div class="panel ${portrait?'portrait':''}" style="flex-direction:column;gap:3px;padding:5px">
@@ -426,113 +444,129 @@ function renderComposeGrid(){
   }
   document.getElementById('composeGrid').innerHTML=`<div class="grid" style="grid-template-columns:repeat(${S.cols},minmax(78px,1fr))">${cells}</div>`;
 }
-function cellChange(key){
-  const src=document.getElementById('cs-'+key).value;
-  document.getElementById('cr-'+key).style.visibility=(src==='default')?'hidden':'visible';
-  updatePreview();
-}
+function cellChange(key){ document.getElementById('cr-'+key).style.visibility=(document.getElementById('cs-'+key).value==='default')?'hidden':'visible'; updatePreview(); }
 function composeAssign(){
   const a=[];
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
-    const key=`${r},${c}`;
-    const src=document.getElementById('cs-'+key).value;
-    const render=document.getElementById('cr-'+key).value;
+    const key=`${r},${c}`, src=document.getElementById('cs-'+key).value, render=document.getElementById('cr-'+key).value;
     a.push(src==='default'?{panel:key,source:'default',render:'full'}:{panel:key,source:src,render});
-  }
-  return a;
+  } return a;
 }
 function composeForm(){
-  const fd=new FormData();
-  composeImages.forEach(f=>fd.append('files',f));
+  const fd=new FormData(); composeImages.forEach(f=>fd.append('files',f));
   fd.append('assign',JSON.stringify(composeAssign()));
-  const name=document.getElementById('cueName').value||'compose';
-  fd.append('name',name); fd.append('cue_id',name);
-  return fd;
+  const name=document.getElementById('cueName').value||'compose'; fd.append('name',name); fd.append('cue_id',name); return fd;
 }
-function renderTVGrid(data){
+function renderTV(elId,data){
   const portrait=data.orientation==='portrait'; let cells='';
   for(let r=0;r<data.rows;r++) for(let c=0;c<data.cols;c++){
     const key=`${r},${c}`, url=data.tiles[key];
-    cells+=`<div class="tv ${portrait?'portrait':''}"><div class="tv-screen">${url?`<img src="${url}">`:''}</div>
+    cells+=`<div class="tv ${portrait?'portrait':''}"><div class="tv-screen">${url?`<img src="${url}">`:'·'}</div>
       <div class="tv-stand"></div><div class="tv-label">TV ${key}</div></div>`;
   }
-  document.getElementById('tvPreview').innerHTML=`<div class="tvgrid" style="grid-template-columns:repeat(${data.cols},minmax(120px,1fr))">${cells}</div>`;
+  document.getElementById(elId).innerHTML=`<div class="tvgrid" style="grid-template-columns:repeat(${data.cols},minmax(120px,1fr))">${cells}</div>`;
 }
 async function updatePreview(){
-  const mode=document.getElementById('buildMode').value, el=document.getElementById('tvPreview');
-  if(mode==='compose'){
-    const r=await (await fetch('/api/tiles_compose',{method:'POST',body:composeForm()})).json(); renderTVGrid(r); return;
-  }
+  const mode=document.getElementById('buildMode').value, el=document.getElementById('cueTv');
+  if(mode==='compose'){ const r=await (await fetch('/api/tiles_compose',{method:'POST',body:composeForm()})).json(); renderTV('cueTv',r); return; }
   const f=document.getElementById('buildFile').files[0];
-  if(!f){ el.innerHTML='<span class="sub">Pick an image to see the wall build.</span>'; return; }
+  if(!f){ return; }
   if(f.type.startsWith('video')){ el.innerHTML='<span class="sub">Live preview is for images. Video tiles are generated on Build.</span>'; return; }
   const fd=new FormData(); fd.append('file',f); fd.append('mode',mode);
   if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
-  const r=await (await fetch('/api/tiles',{method:'POST',body:fd})).json(); renderTVGrid(r);
-}
-function buildForm(){
-  const f=document.getElementById('buildFile').files[0];
-  if(!f){ alert('Choose a master file'); return null; }
-  const fd=new FormData(); fd.append('file',f);
-  fd.append('name',document.getElementById('cueName').value||f.name);
-  fd.append('cue_id',document.getElementById('cueName').value||f.name);
-  fd.append('mode',document.getElementById('buildMode').value);
-  if(document.getElementById('buildMode').value==='solo') fd.append('target',document.getElementById('soloTarget').value);
-  return {fd,file:f};
+  const r=await (await fetch('/api/tiles',{method:'POST',body:fd})).json(); renderTV('cueTv',r);
 }
 async function buildCue(){
-  const mode=document.getElementById('buildMode').value;
-  if(mode==='compose'){
-    document.getElementById('buildStatus').textContent='building…';
-    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:composeForm()})).json();
-    document.getElementById('buildStatus').textContent='added compose cue: '+r.cue_id;
-    log('built compose cue '+r.cue_id); loadShowSelector(); return;
-  }
-  const b=buildForm(); if(!b) return;
+  const mode=document.getElementById('buildMode').value, name=document.getElementById('cueName').value.trim();
+  if(!name){ alert('Give the cue a name'); return; }
   document.getElementById('buildStatus').textContent='building…';
-  if(b.file.type.startsWith('video')){
-    const r=await (await fetch('/api/cue/build_video',{method:'POST',body:b.fd})).json(); pollBuild(r.job_id);
+  let cueId=null;
+  if(mode==='compose'){
+    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:composeForm()})).json(); cueId=r.cue_id;
   } else {
-    const r=await (await fetch('/api/cue/build',{method:'POST',body:b.fd})).json();
-    document.getElementById('buildStatus').textContent='added cue: '+r.cue_id;
-    log('built image cue '+r.cue_id); loadShowSelector();
+    const f=document.getElementById('buildFile').files[0];
+    if(!f){ alert('Choose a master file'); return; }
+    const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode',mode);
+    if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
+    if(f.type.startsWith('video')){
+      const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); cueId=r.cue_id;
+    } else {
+      const r=await (await fetch('/api/cue/build',{method:'POST',body:fd})).json(); cueId=r.cue_id;
+    }
   }
+  document.getElementById('buildStatus').textContent='built (draft — push to displays when ready)';
+  log('built cue '+cueId); await loadWorkspace(); selectedCue=cueId; standbyId=standbyId||cueId; openEditor(cueId); renderCues(); renderStandby();
 }
 async function pollBuild(job){
-  const s=await (await fetch('/api/cue/build_video/status/'+job)).json();
-  document.getElementById('buildStatus').textContent=`video ${s.state} ${s.total?`(${s.done}/${s.total} tiles)`:''} ${s.error||''}`;
-  if(s.state!=='ready'&&s.state!=='error') setTimeout(()=>pollBuild(job),700);
-  else { log('video cue '+s.state); loadShowSelector(); }
+  return new Promise(res=>{
+    (async function p(){
+      const s=await (await fetch('/api/cue/build_video/status/'+job)).json();
+      document.getElementById('buildStatus').textContent=`video ${s.state} ${s.total?`(${s.done}/${s.total})`:''} ${s.error||''}`;
+      if(s.state!=='ready'&&s.state!=='error') setTimeout(p,700); else res();
+    })();
+  });
 }
-
-// ---- RUN ----
-async function loadCues(){
-  const show=await (await fetch('/api/show')).json();
-  const cues=show.cues||[]; const el=document.getElementById('cueList');
-  if(!cues.length){ el.innerHTML='<div class="sub">No cues in this show. Use the Build tab.</div>'; return; }
-  el.innerHTML=cues.map((c,i)=>{ const id=c.id;
-    return `<div class="item"><div><div class="nm">${i+1}. ${c.name}</div>
-      <div class="mt">${c.type} · ${c.mode} · ${c.panels.length} panel(s)</div></div>
-      <div style="display:flex;gap:8px">
-        ${c.type==='video'?`<label class="mt"><input type="checkbox" id="loop-${id}"> loop</label>`:''}
-        <button class="btn btn-go" style="margin:0" onclick="fire('${id}')">▶ Fire</button>
-        <button class="btn btn-danger" style="margin:0" onclick="delCue('${id}')">✕</button>
-      </div></div>`; }).join('');
-}
-async function fire(id){
-  const l=document.getElementById('loop-'+id);
-  const r=await (await fetch('/api/cue/fire',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({cue_id:id,loop:l?l.checked:false})})).json();
-  log('FIRE '+id+' @ '+(r.show_at?new Date(r.show_at*1000).toLocaleTimeString():'?'));
-}
-async function delCue(id){
-  if(!confirm('Delete cue '+id+'?')) return;
-  await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:id})});
-  log('deleted '+id); loadCues();
+async function deleteCue(){
+  if(!selectedCue||!confirm('Delete cue '+selectedCue+'?')) return;
+  await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})});
+  log('deleted '+selectedCue); selectedCue=null; document.getElementById('cueEditor').style.display='none'; await loadWorkspace();
 }
 async function control(a){ await fetch('/api/control/'+a,{method:'POST'}); log('control: '+a); }
 
-// ---- GRID CONFIG (Wall tab) ----
+// ===== LIBRARY =====
+async function loadActiveLib(){
+  const d=await (await fetch('/api/library?workspace='+encodeURIComponent(S.active_workspace.id))).json();
+  LIB=d.images; LIBDEFAULT=d.default;
+  const sel=document.getElementById('defaultImg');
+  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
+}
+async function loadLibraryTab(){
+  const wss=await (await fetch('/api/workspaces')).json();
+  const sel=document.getElementById('libWsSel'); const cur=sel.value||wss.active;
+  sel.innerHTML=wss.workspaces.map(w=>`<option value="${w.id}" ${w.id===cur?'selected':''}>${w.name}</option>`).join('');
+  const d=await (await fetch('/api/library?workspace='+encodeURIComponent(sel.value))).json();
+  document.getElementById('libGrid').innerHTML=Object.entries(d.images).map(([id,m])=>`
+    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}${m.builtin?' ·global':''}</div>
+      ${m.builtin?'<div class="sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
+    </div>`).join('');
+}
+function onLibFiles(){ uploadLibFiles(document.getElementById('libFile').files); }
+async function uploadLibFiles(files){
+  const wsId=document.getElementById('libWsSel').value; let n=0;
+  for(const f of files){ if(!f.type.startsWith('image')) continue;
+    const fd=new FormData(); fd.append('file',f); fd.append('name',f.name.replace(/\.[^.]+$/,'')); fd.append('workspace',wsId);
+    await fetch('/api/library',{method:'POST',body:fd}); n++; }
+  document.getElementById('libFile').value=''; log(n+' image(s) added'); loadLibraryTab(); loadActiveLib();
+}
+async function delLibrary(id){
+  if(!confirm('Delete library image '+id+'?')) return;
+  const r=await (await fetch('/api/library/'+id,{method:'DELETE'})).json();
+  if(r.error) alert(r.error); else { log('deleted '+id); loadLibraryTab(); }
+}
+async function setDefaultImage(){
+  const v=document.getElementById('defaultImg').value;
+  await fetch('/api/workspace/default_image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({default_image:v})});
+  log('default image -> '+v); loadActiveLib();
+}
+
+// ===== WALL =====
+function renderGrid(){
+  const g=document.getElementById('wallGrid'); if(!g||!S) return;
+  g.style.gridTemplateColumns=`repeat(${S.cols},minmax(64px,1fr))`;
+  const portrait=S.orientation==='portrait'; let h='';
+  for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
+    const key=`${r},${c}`, st=nodeStatus[key], cls=st===undefined?'':(st?'online':'offline');
+    h+=`<div class="panel ${portrait?'portrait':''} ${cls}" title="${key}">${key}<span class="dot ${cls}"></span></div>`;
+  }
+  g.innerHTML=h;
+}
+async function setLayout(l){
+  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l})});
+  await loadState(); await refresh(); renderGridConfig();
+  if(document.getElementById('buildMode').value==='compose') renderComposeGrid(); log('layout -> '+l);
+}
+async function setFit(){ await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,fit:document.getElementById('fit').value})}); await loadState(); }
+async function setBezel(){ await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:S.layout,bezel_comp:document.getElementById('bezel').value==='1'})}); await loadState(); log('bezel comp toggled'); }
 function renderGridConfig(){
   if(!S) return; let h='';
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
@@ -540,35 +574,35 @@ function renderGridConfig(){
     h+=`<div class="gc"><span class="pill">${key}</span>
       <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP">
       <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port">
-      <button class="btn btn-secondary" style="margin:0;padding:8px 12px" onclick="identify('${key}')">Identify</button></div>`;
+      <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button></div>`;
   }
   document.getElementById('gridConfig').innerHTML=h;
 }
 async function saveNodes(){
   const nodes={};
   for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++){
-    const key=`${r},${c}`;
-    const host=document.getElementById('h-'+key).value.trim();
-    const port=parseInt(document.getElementById('p-'+key).value);
+    const key=`${r},${c}`, host=document.getElementById('h-'+key).value.trim(), port=parseInt(document.getElementById('p-'+key).value);
     if(host&&port) nodes[key]={host,port};
   }
   await fetch('/api/nodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes})});
   log('saved TV placement'); await loadState(); await refresh();
 }
-async function identify(key){
-  await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
-  log('identify '+key);
-}
+async function identify(key){ await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})}); log('identify '+key); }
 
-// ---- drag & drop on library ----
+// drag & drop library
 (function(){
   const dz=document.getElementById('dropzone');
   ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.add('drag'); }));
-  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); if(ev!=='drop'||true) dz.classList.remove('drag'); }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
   dz.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) uploadLibFiles(e.dataTransfer.files); });
 })();
+// spacebar = GO (not while typing)
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ const t=document.activeElement.tagName; if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA') return;
+    e.preventDefault(); go(); }
+});
 
-loadState().then(()=>{ refresh(); loadActiveLib(); loadShowSelector(); });
+loadState().then(()=>{ refresh(); loadWorkspace(); });
 setInterval(refresh,15000);
 </script>
 </body>

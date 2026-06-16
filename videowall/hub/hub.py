@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """Video Hive Hub.
 
-The control unit. Workflow:
+A *workspace* is a named, ordered set of cues (QLab-style). Workflow:
 
-  SHOW          A show is a named set of cues. Create unlimited shows, open one
-                to work on it, save as you go, then distribute + run it.
-  LIBRARY       Reusable images stored on the hub (a built-in black rectangle
-                plus anything you upload). Used as compose sources and as the
-                default for unassigned panels.
-  BUILD         Author a master at the wall format; the hub slices it (+ bezel
-                math) and files the per-panel pieces under a cue, on disk and
-                on each TV.
-  DISTRIBUTE    Push a whole show's pre-built pieces to the TVs (once, ahead of
-                the show, or again after a reboot / TV swap).
-  FIRE          Show a cue by ID -- a tiny synchronized command, no media moves.
+  EDIT      Open/create a workspace, add cues, and configure each one (mode,
+            sources, compose). Building a cue slices it and stores the pieces on
+            the hub. A cue is then a DRAFT until it is pushed.
+  PUSH      Send a cue's (or the whole workspace's) pre-built pieces to the
+            display clients. A pushed cue is READY. Editing a cue makes it a
+            draft again. This is the pre-production step.
+  RUN       GO fires the standby cue (only if READY) -- a tiny synchronized
+            command, no media moves -- then advances to the next cue.
 
 Run from this directory:
 
@@ -27,6 +24,7 @@ import base64
 import io
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -49,16 +47,16 @@ CORS(app)
 
 STORE = Path(os.path.dirname(os.path.abspath(__file__))) / "store"
 LIB_DIR = STORE / "library"
-SHOWS_DIR = STORE / "shows"
+WS_DIR = STORE / "workspaces"
 LIB_JSON = STORE / "library.json"
 SETTINGS_JSON = STORE / "settings.json"
 
 STATE = {
     "config_path": None,
     "config": None,
-    "library": {},        # img_id -> {name, file, builtin}
-    "settings": {},       # {active_show, default_image}
-    "show": None,         # active show dict (cached)
+    "library": {},
+    "settings": {},
+    "workspace": None,     # active workspace dict (cached)
     "build_jobs": {},
 }
 
@@ -108,7 +106,7 @@ def slugify(s):
 
 
 # --------------------------------------------------------------------------- #
-# Library / settings / shows persistence
+# Library / settings / workspaces persistence
 # --------------------------------------------------------------------------- #
 def load_library():
     STATE["library"] = json.loads(LIB_JSON.read_text()) if LIB_JSON.exists() else {}
@@ -128,102 +126,97 @@ def save_settings():
 
 
 def library_image(img_id):
-    meta = STATE["library"].get(img_id)
-    if not meta:
-        img_id = "black"
-        meta = STATE["library"]["black"]
+    meta = STATE["library"].get(img_id) or STATE["library"]["black"]
     return Image.open(STORE / meta["file"]).convert("RGB")
 
 
-def add_library_image(name, fileobj, show=None):
+def add_library_image(name, fileobj, workspace=None):
     img_id = slugify(name)
     base, n = img_id, 1
     while img_id in STATE["library"]:
         img_id = f"{base}-{n}"; n += 1
     LIB_DIR.mkdir(parents=True, exist_ok=True)
-    img = Image.open(fileobj).convert("RGB")
     rel = f"library/{img_id}.png"
-    img.save(STORE / rel)
+    Image.open(fileobj).convert("RGB").save(STORE / rel)
     STATE["library"][img_id] = {"name": name, "file": rel, "builtin": False,
-                                "show": show}
+                                "workspace": workspace}
     save_library()
     return img_id
 
 
 def default_image_id():
-    show = active_show()
-    return (show.get("default_image") or STATE["settings"].get("default_image")
+    ws = active_workspace()
+    return (ws.get("default_image") or STATE["settings"].get("default_image")
             or "black")
 
 
-def show_path(show_id):
-    return SHOWS_DIR / f"{show_id}.json"
+def workspace_path(ws_id):
+    return WS_DIR / f"{ws_id}.json"
 
 
-def list_shows():
+def list_workspaces():
     out = []
-    for p in sorted(SHOWS_DIR.glob("*.json")):
+    for p in sorted(WS_DIR.glob("*.json")):
         d = json.loads(p.read_text())
         out.append({"id": d["id"], "name": d["name"],
                     "cues": len(d.get("cues", {})), "created": d.get("created")})
     return out
 
 
-def save_show(show):
-    SHOWS_DIR.mkdir(parents=True, exist_ok=True)
-    show_path(show["id"]).write_text(json.dumps(show, indent=2))
+def save_workspace(ws):
+    WS_DIR.mkdir(parents=True, exist_ok=True)
+    workspace_path(ws["id"]).write_text(json.dumps(ws, indent=2))
 
 
-def create_show(name):
-    show_id = slugify(name)
-    base, n = show_id, 1
-    while show_path(show_id).exists():
-        show_id = f"{base}-{n}"; n += 1
-    show = {"id": show_id, "name": name, "default_image": None,
-            "created": time.time(), "order": [], "cues": {}}
-    save_show(show)
-    return show
+def create_workspace(name):
+    ws_id = slugify(name)
+    base, n = ws_id, 1
+    while workspace_path(ws_id).exists():
+        ws_id = f"{base}-{n}"; n += 1
+    ws = {"id": ws_id, "name": name, "default_image": None,
+          "created": time.time(), "order": [], "cues": {}}
+    save_workspace(ws)
+    return ws
 
 
-def open_show(show_id):
-    STATE["show"] = json.loads(show_path(show_id).read_text())
-    STATE["settings"]["active_show"] = show_id
+def open_workspace(ws_id):
+    STATE["workspace"] = json.loads(workspace_path(ws_id).read_text())
+    STATE["settings"]["active_workspace"] = ws_id
     save_settings()
-    return STATE["show"]
+    return STATE["workspace"]
 
 
-def active_show():
-    if STATE["show"] is None:
-        sid = STATE["settings"].get("active_show")
-        if sid and show_path(sid).exists():
-            STATE["show"] = json.loads(show_path(sid).read_text())
+def active_workspace():
+    if STATE["workspace"] is None:
+        wid = STATE["settings"].get("active_workspace")
+        if wid and workspace_path(wid).exists():
+            STATE["workspace"] = json.loads(workspace_path(wid).read_text())
         else:
-            shows = list_shows()
-            STATE["show"] = (json.loads(show_path(shows[0]["id"]).read_text())
-                             if shows else create_show("Default Show"))
-            STATE["settings"]["active_show"] = STATE["show"]["id"]
+            wss = list_workspaces()
+            STATE["workspace"] = (json.loads(workspace_path(wss[0]["id"]).read_text())
+                                  if wss else create_workspace("My Workspace"))
+            STATE["settings"]["active_workspace"] = STATE["workspace"]["id"]
             save_settings()
-    return STATE["show"]
+    return STATE["workspace"]
 
 
-def show_asset_dir(show_id, cue_id):
-    return SHOWS_DIR / show_id / cue_id
+def workspace_asset_dir(ws_id, cue_id):
+    return WS_DIR / ws_id / cue_id
 
 
 def ensure_store():
-    for d in (STORE, LIB_DIR, SHOWS_DIR):
+    for d in (STORE, LIB_DIR, WS_DIR):
         d.mkdir(parents=True, exist_ok=True)
     load_library()
     load_settings()
-    # Built-in black rectangle, always present and non-deletable.
     if "black" not in STATE["library"]:
         Image.new("RGB", (1920, 1920), (0, 0, 0)).save(LIB_DIR / "black.png")
         STATE["library"]["black"] = {"name": "Black", "file": "library/black.png",
-                                     "builtin": True, "show": None}
+                                     "builtin": True, "workspace": None}
         save_library()
     STATE["settings"].setdefault("default_image", "black")
     save_settings()
-    active_show()
+    active_workspace()
 
 
 # --------------------------------------------------------------------------- #
@@ -292,8 +285,6 @@ def slice_for_mode(src, mode, target):
 
 
 def resolve_sources(assignments):
-    """Build {source_key: PIL.Image} for compose: uploaded ("u:i"), library
-    ("lib:id") and the default image ("default")."""
     sources = {"default": library_image(default_image_id())}
     for i, f in enumerate(request.files.getlist("files")):
         sources[f"u:{i}"] = Image.open(f.stream).convert("RGB")
@@ -305,7 +296,6 @@ def resolve_sources(assignments):
 
 
 def compose_images(sources, assignments):
-    """Per-panel images from an assignment. Unassigned panels use the default."""
     tiles, cw, ch, panel, layout = current_tiles()
     fit = STATE["config"].get("fit", "cover")
     ppu = ppu_for(panel)
@@ -342,12 +332,10 @@ def tiles_to_dataurls(imgs, max_px=360):
 
 
 # --------------------------------------------------------------------------- #
-# Cue asset storage + distribution
+# Cue assets, distribution, push state
 # --------------------------------------------------------------------------- #
-def save_assets(show_id, cue_id, staged):
-    """Write per-panel files to disk. staged: {(r,c): (filename, bytes)}.
-    Returns {"r,c": filename}."""
-    adir = show_asset_dir(show_id, cue_id)
+def save_assets(ws_id, cue_id, staged):
+    adir = workspace_asset_dir(ws_id, cue_id)
     adir.mkdir(parents=True, exist_ok=True)
     assets = {}
     for (r, c), (fname, data) in staged.items():
@@ -356,14 +344,13 @@ def save_assets(show_id, cue_id, staged):
     return assets
 
 
-def node_cue_id(show_id, cue_id):
-    return f"{show_id}__{cue_id}"
+def node_cue_id(ws_id, cue_id):
+    return f"{ws_id}__{cue_id}"
 
 
-def distribute_cue(show_id, cue):
-    """Push a cue's on-disk per-panel assets to their nodes."""
-    adir = show_asset_dir(show_id, cue["id"])
-    nid = node_cue_id(show_id, cue["id"])
+def distribute_cue(ws_id, cue):
+    adir = workspace_asset_dir(ws_id, cue["id"])
+    nid = node_cue_id(ws_id, cue["id"])
     loop = "1" if cue.get("loop") else "0"
     kind = "video" if cue["type"] == "video" else "image"
 
@@ -389,11 +376,19 @@ def distribute_cue(show_id, cue):
 
 
 def record_cue(cue):
-    show = active_show()
-    show["cues"][cue["id"]] = cue
-    if cue["id"] not in show["order"]:
-        show["order"].append(cue["id"])
-    save_show(show)
+    """Add/replace a cue in the active workspace (as a draft -- not pushed)."""
+    ws = active_workspace()
+    cue["pushed"] = False
+    cue["built_at"] = time.time()
+    ws["cues"][cue["id"]] = cue
+    if cue["id"] not in ws["order"]:
+        ws["order"].append(cue["id"])
+    save_workspace(ws)
+
+
+def cue_public(cue):
+    return {k: cue[k] for k in ("id", "name", "type", "mode", "panels",
+                                "pushed") if k in cue}
 
 
 # --------------------------------------------------------------------------- #
@@ -408,7 +403,7 @@ def index():
 def api_state():
     cfg = STATE["config"]
     tiles, cw, ch, panel, layout = current_tiles()
-    show = active_show()
+    ws = active_workspace()
     return jsonify({
         "layout": cfg["layout"], "fit": cfg.get("fit", "cover"),
         "bezel_comp": cfg.get("bezel_comp", True),
@@ -417,9 +412,8 @@ def api_state():
         "orientation": layout["orientation"], "nodes": cfg["nodes"],
         "panel": panel.__dict__,
         "authoring": geometry.authoring_target(layout["rows"], layout["cols"], panel),
-        "tiles": [t.__dict__ for t in tiles],
-        "active_show": {"id": show["id"], "name": show["name"],
-                        "default_image": default_image_id()},
+        "active_workspace": {"id": ws["id"], "name": ws["name"],
+                             "default_image": default_image_id()},
     })
 
 
@@ -479,14 +473,12 @@ def api_node_identify():
 # --------------------------------------------------------------------------- #
 @app.route("/api/library")
 def api_library():
-    """Library images. ?show=<id> returns global (built-in) images plus that
-    show's images; omit the param to return everything."""
-    show = request.args.get("show")
+    workspace = request.args.get("workspace")
 
     def keep(v):
-        if v.get("builtin") or v.get("show") is None:
-            return True              # global / built-in: available to every show
-        return show is None or v.get("show") == show
+        if v.get("builtin") or v.get("workspace") is None:
+            return True
+        return workspace is None or v.get("workspace") == workspace
 
     imgs = {k: v for k, v in STATE["library"].items() if keep(v)}
     return jsonify({"images": imgs, "default": default_image_id()})
@@ -497,8 +489,8 @@ def api_library_add():
     if "file" not in request.files:
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
-    show = request.form.get("show") or active_show()["id"]
-    img_id = add_library_image(name, request.files["file"].stream, show=show)
+    workspace = request.form.get("workspace") or active_workspace()["id"]
+    img_id = add_library_image(name, request.files["file"].stream, workspace=workspace)
     return jsonify({"ok": True, "id": img_id})
 
 
@@ -538,72 +530,77 @@ def api_settings():
 
 
 # --------------------------------------------------------------------------- #
-# Routes: shows
+# Routes: workspaces
 # --------------------------------------------------------------------------- #
-@app.route("/api/shows")
-def api_shows():
-    return jsonify({"shows": list_shows(), "active": active_show()["id"]})
+@app.route("/api/workspaces")
+def api_workspaces():
+    return jsonify({"workspaces": list_workspaces(), "active": active_workspace()["id"]})
 
 
-@app.route("/api/shows", methods=["POST"])
-def api_shows_create():
-    name = (request.json or {}).get("name", "Untitled Show")
-    show = create_show(name)
-    open_show(show["id"])
-    return jsonify({"ok": True, "id": show["id"]})
+@app.route("/api/workspaces", methods=["POST"])
+def api_workspaces_create():
+    name = (request.json or {}).get("name", "Untitled Workspace")
+    ws = create_workspace(name)
+    open_workspace(ws["id"])
+    return jsonify({"ok": True, "id": ws["id"]})
 
 
-@app.route("/api/show/open", methods=["POST"])
-def api_show_open():
-    sid = (request.json or {}).get("id")
-    if not show_path(sid).exists():
-        return jsonify({"error": "unknown show"}), 404
-    open_show(sid)
-    return jsonify({"ok": True, "id": sid})
+@app.route("/api/workspace/open", methods=["POST"])
+def api_workspace_open():
+    wid = (request.json or {}).get("id")
+    if not workspace_path(wid).exists():
+        return jsonify({"error": "unknown workspace"}), 404
+    open_workspace(wid)
+    return jsonify({"ok": True, "id": wid})
 
 
-@app.route("/api/show")
-def api_show():
-    show = active_show()
-    cues = [show["cues"][cid] for cid in show["order"] if cid in show["cues"]]
-    return jsonify({"id": show["id"], "name": show["name"],
-                    "default_image": default_image_id(), "cues": cues})
+@app.route("/api/workspace")
+def api_workspace():
+    ws = active_workspace()
+    cues = [cue_public(ws["cues"][cid]) for cid in ws["order"] if cid in ws["cues"]]
+    ready = all(c["pushed"] for c in cues) if cues else True
+    return jsonify({"id": ws["id"], "name": ws["name"],
+                    "default_image": default_image_id(),
+                    "all_ready": ready, "cues": cues})
 
 
-@app.route("/api/show/<sid>", methods=["DELETE"])
-def api_show_delete(sid):
-    p = show_path(sid)
+@app.route("/api/workspace/<wid>", methods=["DELETE"])
+def api_workspace_delete(wid):
+    p = workspace_path(wid)
     if not p.exists():
-        return jsonify({"error": "unknown show"}), 404
+        return jsonify({"error": "unknown workspace"}), 404
     os.remove(p)
-    import shutil
-    shutil.rmtree(SHOWS_DIR / sid, ignore_errors=True)
-    if STATE["settings"].get("active_show") == sid:
-        STATE["show"] = None
-        active_show()
+    shutil.rmtree(WS_DIR / wid, ignore_errors=True)
+    if STATE["settings"].get("active_workspace") == wid:
+        STATE["workspace"] = None
+        active_workspace()
     return jsonify({"ok": True})
 
 
-@app.route("/api/show/default_image", methods=["POST"])
-def api_show_default_image():
+@app.route("/api/workspace/default_image", methods=["POST"])
+def api_workspace_default_image():
     img_id = (request.json or {}).get("default_image")
-    show = active_show()
-    show["default_image"] = img_id
-    save_show(show)
+    ws = active_workspace()
+    ws["default_image"] = img_id
+    save_workspace(ws)
     return jsonify({"ok": True, "default_image": default_image_id()})
 
 
-@app.route("/api/show/distribute", methods=["POST"])
-def api_show_distribute():
-    """Push every cue in the active show to the TVs."""
-    show = active_show()
+@app.route("/api/workspace/push", methods=["POST"])
+def api_workspace_push():
+    """Push every cue in the active workspace to the displays (pre-production)."""
+    ws = active_workspace()
     results = {}
-    for cid in show["order"]:
-        cue = show["cues"].get(cid)
+    for cid in ws["order"]:
+        cue = ws["cues"].get(cid)
         if cue and cue.get("assets"):
-            res = distribute_cue(show["id"], cue)
-            results[cid] = {k: v[0] for k, v in res.items()}
-    return jsonify({"ok": True, "distributed": results})
+            res = distribute_cue(ws["id"], cue)
+            ok = all(v[0] for v in res.values()) if res else False
+            cue["pushed"] = ok
+            cue["pushed_at"] = time.time()
+            results[cid] = ok
+    save_workspace(ws)
+    return jsonify({"ok": True, "pushed": results})
 
 
 # --------------------------------------------------------------------------- #
@@ -647,8 +644,31 @@ def api_tiles_compose():
                     "cols": layout["cols"], "orientation": layout["orientation"]})
 
 
+@app.route("/api/cue/<cue_id>/tiles")
+def api_cue_tiles(cue_id):
+    """Preview of a cue's already-built per-panel pieces (for the editor)."""
+    ws = active_workspace()
+    cue = ws["cues"].get(cue_id)
+    if not cue:
+        return jsonify({"error": "unknown cue"}), 404
+    clay = geometry.LAYOUTS.get(cue.get("layout"), current_panel()[1])
+    base = {"rows": clay["rows"], "cols": clay["cols"],
+            "orientation": clay["orientation"], "type": cue["type"]}
+    if cue["type"] == "video":
+        return jsonify({**base, "tiles": {}})
+    adir = workspace_asset_dir(ws["id"], cue_id)
+    imgs = {}
+    for key, fname in cue["assets"].items():
+        r, c = parse_target(key)
+        try:
+            imgs[(r, c)] = Image.open(adir / fname)
+        except Exception:
+            pass
+    return jsonify({**base, "tiles": tiles_to_dataurls(imgs)})
+
+
 # --------------------------------------------------------------------------- #
-# Routes: build cues (into the active show)
+# Routes: build cues (into the active workspace, as drafts)
 # --------------------------------------------------------------------------- #
 @app.route("/api/cue/build", methods=["POST"])
 def api_cue_build():
@@ -658,18 +678,15 @@ def api_cue_build():
     cue_id = slugify(request.form.get("cue_id") or name)
     mode = request.form.get("mode", "span")
     target = parse_target(request.form.get("target"))
-    show = active_show()
+    ws = active_workspace()
 
     src = Image.open(request.files["file"].stream)
     staged, _ = slice_for_mode(src, mode, target)
-    assets = save_assets(show["id"], cue_id, staged)
-    cue = {"id": cue_id, "name": name, "type": "image", "mode": mode,
-           "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
-           "assets": assets, "loop": False, "created": time.time()}
-    record_cue(cue)
-    dist = distribute_cue(show["id"], cue)
-    return jsonify({"ok": True, "cue_id": cue_id,
-                    "distribute": {k: v[0] for k, v in dist.items()}})
+    assets = save_assets(ws["id"], cue_id, staged)
+    record_cue({"id": cue_id, "name": name, "type": "image", "mode": mode,
+                "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+                "assets": assets, "loop": False, "created": time.time()})
+    return jsonify({"ok": True, "cue_id": cue_id})
 
 
 @app.route("/api/cue/build_compose", methods=["POST"])
@@ -677,21 +694,17 @@ def api_cue_build_compose():
     assignments = json.loads(request.form.get("assign", "[]"))
     name = request.form.get("name") or "compose"
     cue_id = slugify(request.form.get("cue_id") or name)
-    show = active_show()
+    ws = active_workspace()
 
     sources = resolve_sources(assignments)
     imgs, _ = compose_images(sources, assignments)
-    staged = {(r, c): (f"r{r}c{c}.png", png_bytes(img))
-              for (r, c), img in imgs.items()}
-    assets = save_assets(show["id"], cue_id, staged)
-    cue = {"id": cue_id, "name": name, "type": "image", "mode": "compose",
-           "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
-           "assets": assets, "assign": assignments, "loop": False,
-           "created": time.time()}
-    record_cue(cue)
-    dist = distribute_cue(show["id"], cue)
-    return jsonify({"ok": True, "cue_id": cue_id,
-                    "distribute": {k: v[0] for k, v in dist.items()}})
+    staged = {(r, c): (f"r{r}c{c}.png", png_bytes(img)) for (r, c), img in imgs.items()}
+    assets = save_assets(ws["id"], cue_id, staged)
+    record_cue({"id": cue_id, "name": name, "type": "image", "mode": "compose",
+                "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
+                "assets": assets, "assign": assignments, "loop": False,
+                "created": time.time()})
+    return jsonify({"ok": True, "cue_id": cue_id})
 
 
 @app.route("/api/cue/build_video", methods=["POST"])
@@ -700,9 +713,9 @@ def api_cue_build_video():
         return jsonify({"error": "no file"}), 400
     name = request.form.get("name") or request.files["file"].filename
     cue_id = slugify(request.form.get("cue_id") or name)
-    show = active_show()
+    ws = active_workspace()
 
-    adir = show_asset_dir(show["id"], cue_id)
+    adir = workspace_asset_dir(ws["id"], cue_id)
     adir.mkdir(parents=True, exist_ok=True)
     src_path = adir / "_source.mp4"
     request.files["file"].save(src_path)
@@ -710,12 +723,12 @@ def api_cue_build_video():
     job_id = str(int(time.time() * 1000))
     STATE["build_jobs"][job_id] = {"state": "tiling", "done": 0, "total": 0}
     threading.Thread(target=_build_video_worker,
-                     args=(job_id, show["id"], cue_id, name, src_path, adir),
+                     args=(job_id, ws["id"], cue_id, name, src_path, adir),
                      daemon=True).start()
     return jsonify({"ok": True, "job_id": job_id, "cue_id": cue_id})
 
 
-def _build_video_worker(job_id, show_id, cue_id, name, src_path, adir):
+def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
     job = STATE["build_jobs"][job_id]
     try:
         tiles, cw, ch, panel, layout = current_tiles()
@@ -726,16 +739,15 @@ def _build_video_worker(job_id, show_id, cue_id, name, src_path, adir):
         assets = {f"{r},{c}": path.name for (r, c), path in files.items()}
         cue = {"id": cue_id, "name": name, "type": "video", "mode": "span",
                "layout": STATE["config"]["layout"], "panels": list(assets.keys()),
-               "assets": assets, "loop": False, "created": time.time()}
-        # record into the (possibly still-active) show
-        show = json.loads(show_path(show_id).read_text())
-        show["cues"][cue_id] = cue
-        if cue_id not in show["order"]:
-            show["order"].append(cue_id)
-        save_show(show)
-        if STATE["show"] and STATE["show"]["id"] == show_id:
-            STATE["show"] = show
-        distribute_cue(show_id, cue)
+               "assets": assets, "loop": False, "created": time.time(),
+               "pushed": False, "built_at": time.time()}
+        ws = json.loads(workspace_path(ws_id).read_text())
+        ws["cues"][cue_id] = cue
+        if cue_id not in ws["order"]:
+            ws["order"].append(cue_id)
+        save_workspace(ws)
+        if STATE["workspace"] and STATE["workspace"]["id"] == ws_id:
+            STATE["workspace"] = ws
         job["state"] = "ready"
         job["cue_id"] = cue_id
     except Exception as e:
@@ -749,28 +761,40 @@ def api_build_status(job_id):
 
 
 # --------------------------------------------------------------------------- #
-# Routes: cue library (active show) + fire
+# Routes: push / fire / delete
 # --------------------------------------------------------------------------- #
-@app.route("/api/cues")
-def api_cues():
-    show = active_show()
-    return jsonify({cid: show["cues"][cid] for cid in show["order"]
-                    if cid in show["cues"]})
+@app.route("/api/cue/push", methods=["POST"])
+def api_cue_push():
+    cue_id = (request.json or {}).get("cue_id")
+    ws = active_workspace()
+    cue = ws["cues"].get(cue_id)
+    if not cue:
+        return jsonify({"error": "unknown cue"}), 404
+    res = distribute_cue(ws["id"], cue)
+    ok = all(v[0] for v in res.values()) if res else False
+    cue["pushed"] = ok
+    cue["pushed_at"] = time.time()
+    save_workspace(ws)
+    return jsonify({"ok": ok, "cue_id": cue_id,
+                    "nodes": {k: v[0] for k, v in res.items()}})
 
 
 @app.route("/api/cue/fire", methods=["POST"])
 def api_cue_fire():
     data = request.json or {}
     cue_id = data.get("cue_id")
-    show = active_show()
-    cue = show["cues"].get(cue_id)
+    ws = active_workspace()
+    cue = ws["cues"].get(cue_id)
     if not cue:
         return jsonify({"error": f"unknown cue {cue_id!r}"}), 404
+    if not cue.get("pushed") and not data.get("force"):
+        return jsonify({"error": "cue not pushed to displays", "needs_push": True}), 409
+
     loop = bool(data.get("loop", False))
     lead = float(data.get("lead",
                           DEFAULT_VIDEO_LEAD if cue["type"] == "video"
                           else DEFAULT_FIRE_LEAD))
-    nid = node_cue_id(show["id"], cue_id)
+    nid = node_cue_id(ws["id"], cue_id)
     show_at = time.time() + lead
     targets = [(k, STATE["config"]["nodes"][k])
                for k in cue["panels"] if k in STATE["config"]["nodes"]]
@@ -782,19 +806,18 @@ def api_cue_fire():
 @app.route("/api/cue/delete", methods=["POST"])
 def api_cue_delete():
     cue_id = (request.json or {}).get("cue_id")
-    show = active_show()
-    cue = show["cues"].pop(cue_id, None)
+    ws = active_workspace()
+    cue = ws["cues"].pop(cue_id, None)
     if not cue:
         return jsonify({"error": "unknown cue"}), 404
-    if cue_id in show["order"]:
-        show["order"].remove(cue_id)
-    save_show(show)
-    nid = node_cue_id(show["id"], cue_id)
+    if cue_id in ws["order"]:
+        ws["order"].remove(cue_id)
+    save_workspace(ws)
+    nid = node_cue_id(ws["id"], cue_id)
     targets = [(k, STATE["config"]["nodes"][k])
                for k in cue["panels"] if k in STATE["config"]["nodes"]]
     post_targets(targets, "/forget", json={"cue_id": nid})
-    import shutil
-    shutil.rmtree(show_asset_dir(show["id"], cue_id), ignore_errors=True)
+    shutil.rmtree(workspace_asset_dir(ws["id"], cue_id), ignore_errors=True)
     return jsonify({"ok": True, "cue_id": cue_id})
 
 
@@ -821,15 +844,15 @@ def main():
 
     load_config(args.config)
     ensure_store()
-    show = active_show()
+    ws = active_workspace()
     print("=" * 60)
     print("Video Hive Hub")
     print("=" * 60)
-    print(f"Config : {args.config}")
-    print(f"Layout : {STATE['config']['layout']}")
-    print(f"Nodes  : {len(STATE['config']['nodes'])}")
-    print(f"Show   : {show['name']} ({len(show['cues'])} cues)")
-    print(f"Open   : http://localhost:{args.port}")
+    print(f"Config    : {args.config}")
+    print(f"Layout    : {STATE['config']['layout']}")
+    print(f"Nodes     : {len(STATE['config']['nodes'])}")
+    print(f"Workspace : {ws['name']} ({len(ws['cues'])} cues)")
+    print(f"Open      : http://localhost:{args.port}")
     print("=" * 60)
     app.run(host=args.host, port=args.port)
 
