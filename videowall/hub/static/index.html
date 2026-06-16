@@ -314,6 +314,24 @@
     </div>
     <div class="sub" id="oscNote" style="margin-top:8px"></div>
 
+    <h2 style="margin-top:22px">Auto-create cues in QLab</h2>
+    <div class="sub">Build the Network cues straight into your open QLab workspace — one per cue below,
+      named to match, each already sending its address. First, in QLab:
+      <b>enable OSC</b> (Settings → OSC) and add one <b>OSC patch</b> pointing at this hub
+      (<b id="qlabHubDest">…</b>); note its patch number. Then create:</div>
+    <div class="gc" style="grid-template-columns:1fr 100px 90px; margin-top:10px">
+      <div><span class="sub">QLab host / IP (the Mac running QLab)</span>
+        <input type="text" id="qlHost" placeholder="e.g. 10.0.0.5"></div>
+      <div><span class="sub">QLab port</span><input type="number" id="qlPort" value="53000"></div>
+      <div><span class="sub">Patch #</span><input type="number" id="qlPatch" value="1"></div>
+    </div>
+    <label>QLab OSC passcode (only if you set one)</label>
+    <input type="text" id="qlPass" placeholder="leave blank if none" style="max-width:240px">
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-primary" style="flex:0 0 auto" onclick="exportToQlab()">⤴ Create cues in QLab</button>
+    </div>
+    <div class="sub" id="qlExportNote" style="margin-top:8px">Creates new cues each run (it doesn't update existing ones) — delete a previous batch in QLab before re-creating. Then arrange/order them in QLab as you like.</div>
+
     <label style="margin-top:18px">Cue addresses — workspace “<span id="qlabWs"></span>”</label>
     <div class="btn-row" style="margin-bottom:8px">
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="copyAllOsc()">⧉ Copy all addresses</button>
@@ -764,6 +782,11 @@ async function loadQlab(){
     ? 'The hub listens for OSC here. Keep the hub and QLab on the same network; keep TV clocks on NTP for tight sync.'
     : 'Install python-osc on the hub (pip install python-osc) and restart to enable the bridge.';
   document.getElementById('qlabWs').textContent=QLAB.workspace.name;
+  document.getElementById('qlabHubDest').textContent=`${QLAB.host} : ${o.port}, OSC`;
+  const t=QLAB.target||{};
+  if(t.host!==undefined) document.getElementById('qlHost').value=t.host||'';
+  if(t.port) document.getElementById('qlPort').value=t.port;
+  if(t.patch!==undefined&&t.patch!=='') document.getElementById('qlPatch').value=t.patch;
 
   document.getElementById('qlabCues').innerHTML = QLAB.cues.length
     ? QLAB.cues.map(c=>`<div class="oscrow">
@@ -791,6 +814,17 @@ async function postOsc(body){
   if(r.error){ alert(r.error); return; }
   log('OSC bridge: '+(r.osc.enabled?('on udp/'+r.osc.port+(r.osc.running?'':' (not running)')):'off'));
   loadQlab();
+}
+async function exportToQlab(){
+  const host=document.getElementById('qlHost').value.trim();
+  if(!host){ alert('Enter the IP of the Mac running QLab.'); return; }
+  const body={host, port:parseInt(document.getElementById('qlPort').value)||53000,
+    patch:parseInt(document.getElementById('qlPatch').value), passcode:document.getElementById('qlPass').value.trim()};
+  const note=document.getElementById('qlExportNote'); note.textContent='creating cues in QLab…';
+  const r=await (await fetch('/api/qlab/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(r.error||!r.ok){ note.textContent='✕ '+(r.error||'failed'); log('QLab export failed: '+(r.error||'?')); return; }
+  note.textContent=`✓ created ${r.count} cue(s) in QLab on patch ${r.qlab.patch}. Arrange them in QLab as you like.`;
+  log('created '+r.count+' QLab cue(s) → '+host);
 }
 function copyText(t){ navigator.clipboard?.writeText(t); log('copied '+t); }
 function copyAllOsc(){

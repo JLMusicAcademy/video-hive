@@ -47,6 +47,7 @@ import tiler
 try:                                              # the QLab OSC bridge is optional
     from pythonosc.dispatcher import Dispatcher
     from pythonosc.osc_server import ThreadingOSCUDPServer
+    from pythonosc.udp_client import SimpleUDPClient
     HAVE_OSC = True
 except ImportError:
     HAVE_OSC = False
@@ -76,6 +77,8 @@ DEFAULT_FIRE_LEAD = 0.20
 DEFAULT_VIDEO_LEAD = 0.8
 DEFAULT_OSC_PORT = 53000
 DEFAULT_OSC_PREFIX = "/videohive"
+DEFAULT_QLAB_PORT = 53000        # QLab listens for OSC control here by default
+QLAB_CUE_TYPE = "network"        # /new type string for an OSC/Network cue (QLab 5)
 
 
 # --------------------------------------------------------------------------- #
@@ -1048,6 +1051,15 @@ def osc_prefix():
     return "/" + osc_settings()["prefix"].strip("/")
 
 
+def qlab_target():
+    """Saved 'where is QLab' settings for auto-creating cues (host/port/patch)."""
+    t = STATE["settings"].setdefault("qlab", {})
+    t.setdefault("host", "")
+    t.setdefault("port", DEFAULT_QLAB_PORT)
+    t.setdefault("patch", 1)
+    return t
+
+
 def _osc_route(address, *args):
     """Default handler for every incoming OSC message under our prefix."""
     prefix = osc_prefix()
@@ -1128,6 +1140,51 @@ def osc_status():
             "available": HAVE_OSC}
 
 
+def cue_address(ws_id, cue_id):
+    return f"{osc_prefix()}/cue/{ws_id}/{cue_id}"
+
+
+def export_to_qlab(host, port=DEFAULT_QLAB_PORT, patch=None, passcode=None,
+                   gap=0.05):
+    """Auto-create one QLab Network cue per Video Hive cue in the active
+    workspace. QLab runs the show; each created cue sends that cue's OSC address
+    back to this hub (Option 2). We address the new cue as /cue/selected/* right
+    after /new (which selects it), so no reply parsing is needed.
+
+    In QLab 5 a Network cue's protocol is set by its *patch*, so the user makes
+    one OSC patch in QLab pointed at this hub and we reference it by number; the
+    message itself is the cue's address, set via /customString."""
+    if not HAVE_OSC:
+        return {"ok": False, "error": "python-osc is not installed on the hub"}
+    ws = active_workspace()
+    cues = [(cid, ws["cues"][cid]) for cid in ws["order"] if cid in ws["cues"]]
+    if not cues:
+        return {"ok": False, "error": "this workspace has no cues to export"}
+    try:
+        client = SimpleUDPClient(host, int(port))
+    except Exception as e:
+        return {"ok": False, "error": f"cannot open OSC to {host}:{port}: {e}"}
+
+    def send(addr, *args):
+        client.send_message(addr, list(args))
+        if gap:
+            time.sleep(gap)
+
+    if passcode:
+        send("/connect", str(passcode))
+    made = []
+    for cid, cue in cues:
+        addr = cue_address(ws["id"], cid)
+        send("/new", QLAB_CUE_TYPE)            # creates + selects a Network cue
+        send("/cue/selected/name", cue["name"])
+        if patch not in (None, ""):
+            send("/cue/selected/patch", int(patch))
+        send("/cue/selected/customString", addr)   # the OSC message QLab will send
+        made.append({"name": cue["name"], "address": addr})
+    return {"ok": True, "count": len(made), "cues": made,
+            "qlab": {"host": host, "port": int(port), "patch": patch}}
+
+
 @app.route("/api/qlab")
 def api_qlab():
     """Everything QLab needs: where to send OSC, and the address for each cue in
@@ -1141,14 +1198,36 @@ def api_qlab():
             continue
         cues.append({"id": cid, "name": c["name"], "type": c["type"],
                      "pushed": bool(c.get("pushed")),
-                     "address": f"{prefix}/cue/{ws['id']}/{cid}"})
+                     "address": cue_address(ws["id"], cid)})
     return jsonify({
         "osc": osc_status(),
         "host": local_ip(),
         "workspace": {"id": ws["id"], "name": ws["name"]},
         "control": {k: f"{prefix}/{k}" for k in ("black", "clear", "stop")},
+        "target": qlab_target(),
         "cues": cues,
     })
+
+
+@app.route("/api/qlab/export", methods=["POST"])
+def api_qlab_export():
+    """Auto-create the Network cues in QLab over its OSC API."""
+    d = request.json or {}
+    host = (d.get("host") or "").strip()
+    if not host:
+        return jsonify({"error": "QLab host/IP is required"}), 400
+    try:
+        port = int(d.get("port") or DEFAULT_QLAB_PORT)
+    except (TypeError, ValueError):
+        return jsonify({"error": "port must be a number"}), 400
+    patch = d.get("patch")
+    t = qlab_target()                              # remember for next time
+    t["host"], t["port"] = host, port
+    t["patch"] = patch if patch not in (None, "") else t["patch"]
+    save_settings()
+    res = export_to_qlab(host, port, patch, d.get("passcode"),
+                         float(d.get("gap", 0.05)))
+    return (jsonify(res), 200) if res.get("ok") else (jsonify(res), 400)
 
 
 @app.route("/api/qlab/osc", methods=["POST"])

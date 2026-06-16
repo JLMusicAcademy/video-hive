@@ -148,6 +148,18 @@ GO in QLab → the hub fires the cue with the same wall-clock-synchronized
 `show_at` flip as the built-in GO, so the hub hop adds only a tiny constant lead,
 not desync. Copy buttons (and *Copy all addresses*) make wiring QLab quick.
 
+**Auto-create the cues in QLab.** Rather than hand-wiring, the QLab tab can build
+the Network cues straight into your open QLab workspace — one per cue, named to
+match, each already sending its address. One-time QLab setup: enable OSC (Settings
+→ OSC) and add one **OSC patch** pointed at the hub (the tab shows the IP:port);
+note its patch number. Enter QLab's IP, port (53000), and that patch number, then
+*Create cues in QLab*. The hub drives QLab's OSC API (`/new "network"`,
+`/cue/selected/name`, `/cue/selected/patch`, `/cue/selected/customString`); in
+QLab 5 the message protocol comes from the patch, so the cue just carries the
+address. It **creates new cues each run** (doesn't update existing ones), so
+delete a previous batch before re-creating; then arrange/order them in QLab as you
+like.
+
 The bridge is **on by default** (UDP `53000`, prefix `/videohive`); toggle it,
 change the port, or change the prefix on the QLab tab, or from the CLI with
 `--osc-port N` / `--no-osc`. It needs `python-osc` (in `requirements.txt`); if
@@ -232,14 +244,16 @@ Working prototype: **images + pre-processed video**, organized into
 **workspaces** (named cue sets) on a single QLab-style page (Edit/Show modes,
 GO + standby, build → push readiness gate), with a per-workspace image
 **library** and **default image**, plus a **QLab OSC bridge** (one address per
-cue), on a Pi-class hub. Verified end-to-end (slicing, bezel comp & toggle,
-compose, build/push state, workspace isolation, default-image fill, synchronized
-fire, and OSC-fired cues + control) with headless nodes.
+cue) that can **auto-create the Network cues in QLab**, on a Pi-class hub.
+Verified end-to-end (slicing, bezel comp & toggle, compose, build/push state,
+workspace isolation, default-image fill, synchronized fire, OSC-fired cues +
+control, and QLab cue auto-creation) with headless nodes and a mock QLab OSC
+receiver. *The QLab auto-create path is built against QLab 5's documented OSC API
+but not yet run against a live QLab — see the QLab cue-type/patch constants in
+`hub.py` if your QLab build needs a tweak.*
 
 Not yet built (candidate next steps):
 
-- **Auto-create QLab cues** — push the Network cues into QLab over its OSC API
-  (build, don't hand-wire). The bridge addresses above are ready for it.
 - Frame-tight sync hardening (PTP, per-node offset calibration, auto-tuned lead).
 - Re-edit a compose cue from its saved assignment; audio routing.
 
