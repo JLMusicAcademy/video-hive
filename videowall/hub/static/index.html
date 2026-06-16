@@ -59,7 +59,7 @@
   .standby .nm { font-size:20px; font-weight:700; }
 
   .cuelist { margin-top:16px; border:1px solid #eef1f6; border-radius:14px; overflow:hidden; }
-  .cuehead, .cuerow { display:grid; grid-template-columns:26px 40px 1fr 130px 70px 96px; gap:8px; align-items:center; padding:10px 12px; }
+  .cuehead, .cuerow { display:grid; grid-template-columns:26px 34px 1fr 96px 54px 76px 40px; gap:8px; align-items:center; padding:10px 12px; }
   .cuehead { background:#f8fafc; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .cuerow { border-top:1px solid #f1f5f9; cursor:pointer; }
   .cuerow:hover { background:#f8fafc; }
@@ -120,7 +120,7 @@
   @media (max-width:760px){
     .content { padding:14px 12px 70px; }
     .card { padding:15px; }
-    .cuehead, .cuerow { grid-template-columns:22px 30px 1fr 64px; }
+    .cuehead, .cuerow { grid-template-columns:22px 28px 1fr 62px 34px; }
     .col-type, .col-panels { display:none; }
     .gc { grid-template-columns:auto 1fr; } .gc .btn{ grid-column:1/-1; }
     .sidebar { width:84vw; max-width:300px; }
@@ -177,7 +177,7 @@
     <div class="cuelist" id="cueListWrap">
       <div class="cuehead">
         <div></div><div>#</div><div>Name</div>
-        <div class="col-type">Type</div><div class="col-panels">Panels</div><div>Status</div>
+        <div class="col-type">Type</div><div class="col-panels">Panels</div><div>Status</div><div></div>
       </div>
       <div id="cueRows"></div>
     </div>
@@ -346,6 +346,7 @@ function renderCues(){
       <div class="col-type">${c.type}/${c.mode}</div>
       <div class="col-panels">${c.panels.length}</div>
       <div><span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span></div>
+      <div class="rowbtns">${editMode?`<button class="iconbtn del" title="Delete cue" onclick="event.stopPropagation();deleteCueRow('${c.id}')">✕</button>`:''}</div>
     </div>`).join('');
 }
 function renderStandby(){
@@ -609,6 +610,13 @@ async function deleteCue(){
   if(!selectedCue||!confirm('Delete cue '+selectedCue+'?')) return;
   await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})});
   log('deleted '+selectedCue); selectedCue=null; document.getElementById('cueEditor').style.display='none'; await loadWorkspace();
+}
+async function deleteCueRow(id){
+  if(!confirm('Delete cue “'+id+'”?')) return;
+  await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:id})});
+  if(selectedCue===id){ selectedCue=null; document.getElementById('cueEditor').style.display='none'; }
+  if(standbyId===id) standbyId=null;
+  log('deleted '+id); await loadWorkspace();
 }
 async function control(a){ await fetch('/api/control/'+a,{method:'POST'}); log('control: '+a); }
 
