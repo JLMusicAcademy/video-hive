@@ -198,7 +198,8 @@
       <div id="cueRows"></div>
     </div>
     <div class="wsdrop" id="wsDrop">⬇️ Drag image or video files anywhere here — each one becomes a new cue</div>
-    <button class="btn btn-secondary" id="addCueBtn" style="margin-top:12px" onclick="newCue()">＋ Add cue manually</button>
+    <input type="file" id="addCueFiles" accept="image/*,video/*" multiple hidden onchange="addCuesViaPicker()">
+    <button class="btn btn-secondary" id="addCueBtn" style="margin-top:12px" onclick="document.getElementById('addCueFiles').click()">＋ Add cue (choose a file)</button>
 
     <!-- CUE EDITOR (edit mode) -->
     <div class="editor" id="cueEditor" style="display:none">
@@ -216,8 +217,8 @@
         <option value="compose">compose — mix slices, full images &amp; default per panel</option>
       </select>
       <div id="simpleBuild">
-        <label>Master file (image or video)</label>
-        <input type="file" id="buildFile" accept="image/*,video/*" onchange="updatePreview()">
+        <label>Content file — choose one to build (or replace) this cue</label>
+        <input type="file" id="buildFile" accept="image/*,video/*" onchange="onMasterPicked()">
       </div>
       <div id="soloPick" style="display:none">
         <label>Target panel</label>
@@ -232,7 +233,7 @@
       <label style="margin-top:12px">Preview — how each TV will display this cue</label>
       <div class="tvwrap"><div id="cueTv" class="sub">Pick an image to preview, or Build.</div></div>
       <div class="btn-row" style="margin-top:14px">
-        <button class="btn btn-primary" onclick="buildCue()">⤓ Build</button>
+        <button class="btn btn-primary" id="buildBtn" onclick="buildCue()" style="display:none">⤓ Build</button>
         <button class="btn btn-go" id="pushCueBtn" onclick="pushCue()" style="display:none">⤴ Push</button>
         <button class="btn btn-secondary" id="testFireBtn" onclick="testFire()" style="display:none">▶ Test</button>
         <button class="btn btn-danger" id="delCueBtn" onclick="deleteCue()" style="display:none">✕ Delete</button>
@@ -627,11 +628,24 @@ async function openEditor(id){
   if(t.type==='video'){ document.getElementById('cueTv').innerHTML='<span class="sub">▶ video cue ('+c.panels.length+' tiles built). Re-pick a video + Build to change.</span>'; }
   else renderTV('cueTv',t);
 }
+async function addCuesViaPicker(){
+  const inp=document.getElementById('addCueFiles');
+  if(inp.files.length) await createCuesFromFiles(inp.files);
+  inp.value='';
+}
+// Picking a content file builds the cue right away -- no separate Build click.
+async function onMasterPicked(){
+  const mode=document.getElementById('buildMode').value;
+  if(mode==='compose'){ updatePreview(); return; }
+  if(document.getElementById('buildFile').files[0]) await buildCue();
+}
 function onModeChange(){
   const mode=document.getElementById('buildMode').value;
   document.getElementById('composeEditor').style.display=mode==='compose'?'block':'none';
   document.getElementById('simpleBuild').style.display=mode==='compose'?'none':'block';
   document.getElementById('soloPick').style.display=mode==='solo'?'block':'none';
+  // Compose is assembled explicitly; simple modes build the moment you pick a file.
+  document.getElementById('buildBtn').style.display=mode==='compose'?'inline-block':'none';
   if(mode==='compose') renderComposeGrid();
   updatePreview();
 }
