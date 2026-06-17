@@ -197,6 +197,9 @@ $RUN_USER ALL=(root) NOPASSWD: /sbin/reboot, /usr/sbin/reboot, /sbin/shutdown, /
 EOF
 chmod 440 /etc/sudoers.d/videowall-reboot
 
+# Keep the clock synced (NTP) so flips stay tight; the hub also offset-corrects.
+timedatectl set-ntp true 2>/dev/null || true
+
 # --------------------------------------------------------------------------- #
 # 7. Optional: name the Pi after the node, so the hub can use <id>.local
 # --------------------------------------------------------------------------- #
