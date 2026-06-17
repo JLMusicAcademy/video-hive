@@ -191,6 +191,12 @@ RuntimeWatchdogSec=15
 RebootWatchdogSec=2min
 EOF
 
+# Let the hub reboot this Pi remotely: passwordless reboot for the node user.
+cat > /etc/sudoers.d/videowall-reboot <<EOF
+$RUN_USER ALL=(root) NOPASSWD: /sbin/reboot, /usr/sbin/reboot, /sbin/shutdown, /usr/sbin/shutdown
+EOF
+chmod 440 /etc/sudoers.d/videowall-reboot
+
 # --------------------------------------------------------------------------- #
 # 7. Optional: name the Pi after the node, so the hub can use <id>.local
 # --------------------------------------------------------------------------- #

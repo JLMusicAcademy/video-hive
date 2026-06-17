@@ -293,17 +293,33 @@ def forget():
 
 @app.route("/identify", methods=["POST"])
 def identify():
-    """Briefly display this node's grid label, to confirm physical placement."""
-    label = (request.json or {}).get("label", CFG["id"])
+    """Briefly display this node's grid label, then revert to what it was
+    showing. Auto-reverts after `seconds` (default 5) so it never sticks."""
+    data = request.json or {}
+    label = data.get("label", CFG["id"])
+    secs = float(data.get("seconds", 5))
+    prev = STATE["showing"]            # identify doesn't change this; restore to it
     if CFG["headless"]:
-        print(f"[node {CFG['id']}] IDENTIFY -> {label}")
+        print(f"[node {CFG['id']}] IDENTIFY -> {label} ({secs}s)")
         return jsonify({"ok": True, "headless": True})
     img = Path(f"/tmp/ident-{CFG['id']}.png")
     os.system(f"convert -size 1280x720 xc:#202020 -gravity center "
               f"-pointsize 160 -fill white -annotate 0 '{label}' {img} 2>/dev/null")
     if img.exists():
         display(img, "image", True)
-    return jsonify({"ok": True, "label": label})
+
+        def _revert():
+            if prev and prev in STATE["library"]:
+                show_cue(prev)
+            else:
+                show_black()
+
+        if STATE.get("identify_timer"):
+            STATE["identify_timer"].cancel()
+        t = threading.Timer(secs, _revert)
+        t.start()
+        STATE["identify_timer"] = t
+    return jsonify({"ok": True, "label": label, "seconds": secs})
 
 
 @app.route("/stop", methods=["POST"])
@@ -322,6 +338,18 @@ def clear():
         STATE["timer"].cancel()
     show_black()
     STATE["showing"] = None
+    return jsonify({"ok": True})
+
+
+@app.route("/reboot", methods=["POST"])
+def reboot():
+    """Reboot this Pi (remote management from the hub). Needs passwordless
+    reboot for the node user -- the installer adds a sudoers rule for it."""
+    print(f"[node {CFG['id']}] REBOOT requested")
+    if CFG["headless"]:
+        return jsonify({"ok": True, "headless": True})
+    # Reply first, then reboot a moment later so the hub gets a response.
+    threading.Timer(1.0, lambda: os.system("sudo /sbin/reboot")).start()
     return jsonify({"ok": True})
 
 

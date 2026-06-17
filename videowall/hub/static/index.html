@@ -277,7 +277,10 @@
     <div id="discList" class="sub" style="display:flex;gap:6px;flex-wrap:wrap">—</div>
     <label style="margin-top:18px">TV placement — assign each cell to a discovered TV (by name)</label>
     <div id="gridConfig"></div>
-    <button class="btn btn-primary" onclick="saveNodes()">💾 Save TV placement</button>
+    <div class="btn-row" style="margin-top:4px">
+      <button class="btn btn-primary" style="flex:0 0 auto" onclick="saveNodes()">💾 Save TV placement</button>
+      <button class="btn btn-danger" style="flex:0 0 auto" onclick="rebootAll()">⟲ Reboot all TVs</button>
+    </div>
   </div>
 
   <!-- LIBRARY -->
@@ -908,10 +911,11 @@ function renderGridConfig(){
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
     const key=`${r},${c}`, n=(g.nodes||{})[key]||{};
     const sel = n.node ? ('node:'+n.node) : (n.host ? 'manual' : '');
-    h+=`<div class="gc" style="grid-template-columns:auto 1fr auto">
+    h+=`<div class="gc" style="grid-template-columns:auto 1fr auto auto">
       <span class="pill">${key}</span>
       <select id="n-${key}" onchange="onNodeSel('${key}')" ${locked?'disabled':''}>${nodeSelOptions(sel)}</select>
       <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button>
+      <button class="btn btn-secondary" style="padding:8px 12px" title="Reboot this TV" onclick="rebootNode('${key}')">⟲</button>
       <div id="m-${key}" style="grid-column:1/-1;display:${sel==='manual'?'flex':'none'};gap:8px">
         <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP" ${locked?'disabled':''}>
         <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port" ${locked?'disabled':''}>
@@ -944,6 +948,15 @@ async function saveNodes(){
   log('saved TV placement ('+gridTarget+')'); await loadState(); await refresh();
 }
 async function identify(key){ await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})}); log('identify '+key); }
+async function rebootNode(key){
+  if(!confirm('Reboot TV '+key+' now?')) return;
+  const r=await (await fetch('/api/node/reboot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})})).json();
+  log(r.error?('reboot '+key+' failed: '+r.error):('rebooting '+key+'…'));
+}
+async function rebootAll(){
+  if(!confirm('Reboot ALL mapped TVs now?')) return;
+  await fetch('/api/nodes/reboot_all',{method:'POST'}); log('reboot sent to all mapped TVs');
+}
 
 // drag & drop library
 (function(){

@@ -676,6 +676,22 @@ def api_node_identify():
                                            json={"label": key})})
 
 
+@app.route("/api/node/reboot", methods=["POST"])
+def api_node_reboot():
+    """Reboot one mapped TV."""
+    key = (request.json or {}).get("key")
+    node = resolve_node(eff_nodes().get(key))
+    if not node:
+        return jsonify({"error": "node not mapped or offline"}), 404
+    return jsonify({"ok": True, "result": post_targets([(key, node)], "/reboot")})
+
+
+@app.route("/api/nodes/reboot_all", methods=["POST"])
+def api_nodes_reboot_all():
+    """Reboot every mapped TV."""
+    return jsonify({"ok": True, "nodes": post_targets(all_node_items(), "/reboot")})
+
+
 # --------------------------------------------------------------------------- #
 # Routes: library + settings
 # --------------------------------------------------------------------------- #
