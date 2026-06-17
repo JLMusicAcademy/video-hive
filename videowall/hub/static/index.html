@@ -561,18 +561,28 @@ async function reorderCue(id,beforeId){
   await fetch('/api/cue/reorder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:ids})});
   log('reordered cues'); await loadWorkspace();
 }
+// Browsers often leave file.type empty for dropped files, so fall back to the
+// extension instead of silently ignoring the file.
+const isImageFile=f=>f.type.startsWith('image')||/\.(png|jpe?g|gif|bmp|webp|tiff?)$/i.test(f.name);
+const isVideoFile=f=>f.type.startsWith('video')||/\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(f.name);
 async function createCuesFromFiles(files){
   if(!editMode){ alert('Switch to Edit mode to add cues.'); return; }
   let n=0;
   for(const f of files){
     const name=f.name.replace(/\.[^.]+$/,'');
-    if(f.type.startsWith('image')){
+    if(isImageFile(f)){
       const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode','span');
-      await fetch('/api/cue/build',{method:'POST',body:fd}); n++;
-    } else if(f.type.startsWith('video')){
+      const r=await fetch('/api/cue/build',{method:'POST',body:fd});
+      if(r.ok) n++; else log('could not add image '+f.name);
+    } else if(isVideoFile(f)){
       const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name);
-      document.getElementById('buildStatus').textContent='tiling '+name+'…';
-      const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); n++;
+      document.getElementById('buildStatus').textContent='tiling '+name+'… (ffmpeg on the hub)';
+      const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json();
+      const s=await pollBuild(r.job_id);
+      if(s.state==='ready') n++;
+      else log('video '+f.name+' failed: '+(s.error||'tiling error — is ffmpeg installed on the hub?'));
+    } else {
+      log('skipped '+f.name+' — not a recognized image or video file');
     }
   }
   document.getElementById('buildStatus').textContent='';
@@ -709,7 +719,7 @@ async function pollBuild(job){
     (async function p(){
       const s=await (await fetch('/api/cue/build_video/status/'+job)).json();
       document.getElementById('buildStatus').textContent=`video ${s.state} ${s.total?`(${s.done}/${s.total})`:''} ${s.error||''}`;
-      if(s.state!=='ready'&&s.state!=='error') setTimeout(p,700); else res();
+      if(s.state!=='ready'&&s.state!=='error') setTimeout(p,700); else res(s);
     })();
   });
 }
