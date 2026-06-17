@@ -234,9 +234,8 @@
       </div>
       <div style="margin-top:10px"><span class="link" style="cursor:pointer;font-size:13px" onclick="toggleAdvanced()">⚙ Advanced — change mode (mirror / solo / compose)</span></div>
       <label style="margin-top:12px">Preview — how each TV will display this cue</label>
-      <div class="tvwrap"><div id="cueTv" class="sub">Drop a file or use “Replace file…”.</div></div>
+      <div class="tvwrap"><div id="cueTv" class="sub">Preview of this cue.</div></div>
       <div class="btn-row" style="margin-top:14px">
-        <button class="btn btn-secondary" id="replaceBtn" onclick="document.getElementById('buildFile').click()" style="display:none">⤴ Replace file…</button>
         <button class="btn btn-primary" id="buildBtn" onclick="buildCue()" style="display:none">⤓ Build</button>
         <button class="btn btn-go" id="pushCueBtn" onclick="pushCue()" style="display:none">⤴ Push</button>
         <button class="btn btn-secondary" id="testFireBtn" onclick="testFire()" style="display:none">▶ Test</button>
@@ -604,7 +603,7 @@ function newCue(){
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
   document.getElementById('cueTv').innerHTML='<span class="sub">Pick an image to preview, or Build.</span>';
-  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn','replaceBtn'].forEach(x=>document.getElementById(x).style.display='none');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='none');
   document.getElementById('advanced').style.display='none';
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
@@ -625,7 +624,7 @@ async function openEditor(id){
   document.getElementById('buildMode').value=c.mode==='compose'?'compose':(c.mode);
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
-  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn','replaceBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
   document.getElementById('advanced').style.display=(c.mode && c.mode!=='span')?'block':'none';
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
