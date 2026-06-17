@@ -95,7 +95,8 @@ fi
 
 # Fail loudly now if we installed an out-of-date node.py, instead of leaving the
 # service in a silent restart loop (old node.py rejects --gpu-context -> exit 2).
-grep -q -- "--gpu-context" "$INSTALL_DIR/node.py" || die \
+# Match the argparse *option*, not the old hard-coded mpv "--gpu-context=x11egl".
+grep -q 'add_argument("--gpu-context"' "$INSTALL_DIR/node.py" || die \
 "the installed node.py is out of date (no --gpu-context / DRM support). The copy
  on '$NODE_BRANCH' is behind. Fix by copying the current node.py next to this
  script and re-running, or set NODE_BRANCH=<feature-branch> / NODE_SRC=/path."
