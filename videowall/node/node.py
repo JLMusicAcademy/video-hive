@@ -59,6 +59,7 @@ STATE = {
     "library": {},       # cue_id -> {"file": str, "kind": str, "loop": bool}
     "showing": None,     # cue_id currently displayed
     "timer": None,
+    "update": {"state": "idle", "log": ""},   # OS package update job
 }
 
 
@@ -355,6 +356,52 @@ def reboot():
     # Reply first, then reboot a moment later so the hub gets a response.
     threading.Timer(1.0, lambda: os.system("sudo /sbin/reboot")).start()
     return jsonify({"ok": True})
+
+
+def _run_update(password):
+    """apt-get update + upgrade, password fed to sudo. Output kept for polling."""
+    env = dict(os.environ,
+               DEBIAN_FRONTEND="noninteractive", NEEDRESTART_MODE="a")
+    log = ""
+    try:
+        for cmd in (["sudo", "-S", "apt-get", "update"],
+                    ["sudo", "-S", "apt-get", "-y",
+                     "-o", "Dpkg::Options::=--force-confold", "upgrade"]):
+            p = subprocess.run(cmd, input=password + "\n", capture_output=True,
+                               text=True, env=env, timeout=1800)
+            log += "$ " + " ".join(cmd) + "\n" + p.stdout[-4000:] + p.stderr[-1500:] + "\n"
+            STATE["update"]["log"] = log[-8000:]
+            if p.returncode != 0:
+                STATE["update"]["state"] = "error"
+                return
+        STATE["update"]["state"] = "done"
+    except Exception as e:
+        STATE["update"] = {"state": "error", "log": log + f"\n{e}"}
+
+
+@app.route("/update", methods=["POST"])
+def update_packages():
+    """Run an OS package update -- gated by the node's sudo password so it
+    can't be triggered accidentally. Runs in the background; poll /update/status.
+    NOTE: the password travels over the LAN in the clear; this is a guard
+    against accidents, not a hardened secret channel."""
+    pw = (request.json or {}).get("password", "")
+    # Verify the sudo password (forces re-auth; 'true' isn't in any NOPASSWD rule).
+    chk = subprocess.run(["sudo", "-S", "-k", "true"],
+                         input=pw + "\n", capture_output=True, text=True)
+    if chk.returncode != 0:
+        return jsonify({"error": "sudo authentication failed"}), 403
+    if STATE["update"]["state"] == "running":
+        return jsonify({"error": "an update is already running"}), 409
+    STATE["update"] = {"state": "running", "log": ""}
+    threading.Thread(target=_run_update, args=(pw,), daemon=True).start()
+    return jsonify({"ok": True, "state": "running"})
+
+
+@app.route("/update/status")
+def update_status():
+    u = STATE["update"]
+    return jsonify({"state": u["state"], "log": u["log"][-6000:]})
 
 
 def main():

@@ -755,6 +755,32 @@ def api_nodes_reboot_all():
     return jsonify({"ok": True, "nodes": post_targets(all_node_items(), "/reboot")})
 
 
+@app.route("/api/node/update", methods=["POST"])
+def api_node_update():
+    """Start an OS package update on one TV (password-gated on the node)."""
+    data = request.json or {}
+    node = resolve_node(eff_nodes().get(data.get("key")))
+    if not node:
+        return jsonify({"error": "node not mapped or offline"}), 404
+    try:
+        r = requests.post(node_url(node, "/update"),
+                          json={"password": data.get("password", "")}, timeout=15)
+        return jsonify(r.json()), r.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/node/update/status", methods=["POST"])
+def api_node_update_status():
+    node = resolve_node(eff_nodes().get((request.json or {}).get("key")))
+    if not node:
+        return jsonify({"error": "node not mapped or offline"}), 404
+    try:
+        return jsonify(requests.get(node_url(node, "/update/status"), timeout=10).json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
 # --------------------------------------------------------------------------- #
 # Routes: library + settings
 # --------------------------------------------------------------------------- #

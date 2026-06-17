@@ -896,6 +896,7 @@ function renderCellEditor(){
       <button class="btn btn-primary" style="flex:0 0 auto" onclick="saveCell()">💾 Save</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="identify('${key}')">Identify</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="rebootNode('${key}')">⟲ Reboot</button>
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="updateNode('${key}')">⬆ Update packages</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="closeCell()">Close</button>
     </div>`;
 }
@@ -945,6 +946,19 @@ async function rebootNode(key){
   if(!confirm('Reboot TV '+key+' now?')) return;
   const r=await (await fetch('/api/node/reboot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})})).json();
   log(r.error?('reboot '+key+' failed: '+r.error):('rebooting '+key+'…'));
+}
+async function updateNode(key){
+  if(!confirm('Run OS package updates on TV '+key+'?\nUpdate ONE TV, verify the wall, then do the rest. Keep a known-good SD image as your rollback.')) return;
+  const password=prompt('Enter the node’s sudo password to authorize the update for '+key+':'); if(!password) return;
+  const r=await (await fetch('/api/node/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,password})})).json();
+  if(r.error){ log('update '+key+' rejected: '+r.error); alert('Update not started: '+r.error); return; }
+  log('update '+key+' started… (watch Activity)');
+  const poll=async()=>{
+    const s=await (await fetch('/api/node/update/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})})).json();
+    if(s.state==='running'){ setTimeout(poll,4000); return; }
+    log('update '+key+' '+(s.state||'?')+'\n'+(s.log||''));
+  };
+  setTimeout(poll,4000);
 }
 async function rebootAll(){
   if(!confirm('Reboot ALL mapped TVs now?')) return;
