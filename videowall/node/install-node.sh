@@ -10,8 +10,8 @@
 #
 # Push it to a Pi and run it. That's the whole install:
 #
-#     scp install-node.sh pi@<pi-address>:~
-#     ssh pi@<pi-address> 'sudo NODE_ID=tv00 NODE_ROTATION=0 bash install-node.sh'
+#     scp install-node.sh admin@<pi-address>:~
+#     ssh admin@<pi-address> 'sudo NODE_ID=tv00 NODE_ROTATION=0 bash install-node.sh'
 #
 # It fetches the node program (node.py) for you: it uses a node.py sitting next
 # to this script if present, otherwise downloads it from GitHub. So you can copy
@@ -21,7 +21,7 @@
 #   NODE_ID         unique name for this display      (default: the hostname)
 #   NODE_PORT       HTTP port the hub talks to         (default: 8001)
 #   NODE_ROTATION   0 | 90 | 180 | 270 for the mount   (default: 0)
-#   RUN_USER        user the kiosk runs as             (default: the sudo user, or pi)
+#   RUN_USER        user the kiosk runs as             (default: the sudo user, or admin)
 #   SET_HOSTNAME    1 = set the Pi's hostname to NODE_ID for <id>.local mDNS
 #                   0 = leave hostname alone           (default: 1)
 #   NODE_SRC        path to a local node.py to install (skips the download)
@@ -50,7 +50,7 @@ die() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "run as root, e.g.  sudo bash $0"
 
 # Who the kiosk runs as (a normal user, not root -- X gets root rights via Xwrapper).
-RUN_USER="${RUN_USER:-${SUDO_USER:-pi}}"
+RUN_USER="${RUN_USER:-${SUDO_USER:-admin}}"
 id "$RUN_USER" >/dev/null 2>&1 || die "user '$RUN_USER' does not exist (set RUN_USER=...)"
 
 NODE_ID="${NODE_ID:-$(hostname)}"

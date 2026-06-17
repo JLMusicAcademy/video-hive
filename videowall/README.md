@@ -227,8 +227,8 @@ minimal X server, imagemagick, Flask), installs the node, and configures it to:
   reloads its library and is immediately fireable.
 
 ```bash
-scp node/install-node.sh pi@<pi-address>:~
-ssh pi@<pi-address> 'sudo NODE_ID=tv00 NODE_ROTATION=0 bash install-node.sh'
+scp node/install-node.sh admin@<pi-address>:~
+ssh admin@<pi-address> 'sudo NODE_ID=tv00 NODE_ROTATION=0 bash install-node.sh'
 ```
 
 Per-Pi settings are environment variables (all optional): `NODE_ID` (default the
