@@ -599,14 +599,14 @@ def api_layout():
 
 @app.route("/api/nodes", methods=["POST"])
 def api_nodes():
-    """Set a grid's TV placement. target='default' or 'workspace'."""
+    """Set a grid's TV placement. target='default' or 'workspace'. TV placement
+    is which physical TV sits in each cell -- independent of how cues are
+    sliced, so it stays editable even when the grid is otherwise locked."""
     data = request.json or {}
     nodes = data.get("nodes")
     if not isinstance(nodes, dict):
         return jsonify({"error": "nodes must be an object"}), 400
-    grid, save, locked = _target_grid(data.get("target", "default"))
-    if locked:
-        return jsonify({"error": "this workspace's grid is locked.", "locked": True}), 409
+    grid, save, _locked = _target_grid(data.get("target", "default"))
     grid["nodes"] = nodes
     save()
     return jsonify({"ok": True, "nodes": nodes})

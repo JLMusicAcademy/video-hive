@@ -907,18 +907,18 @@ function nodeSelOptions(sel){
   return o;
 }
 function renderGridConfig(){
-  if(!S) return; const g=wallG(), locked=(gridTarget==='workspace'&&S.wall_locked); let h='';
+  if(!S) return; const g=wallG(); let h='';   // TV placement is always editable (independent of slicing/lock)
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
     const key=`${r},${c}`, n=(g.nodes||{})[key]||{};
     const sel = n.node ? ('node:'+n.node) : (n.host ? 'manual' : '');
     h+=`<div class="gc" style="grid-template-columns:auto 1fr auto auto">
       <span class="pill">${key}</span>
-      <select id="n-${key}" onchange="onNodeSel('${key}')" ${locked?'disabled':''}>${nodeSelOptions(sel)}</select>
+      <select id="n-${key}" onchange="onNodeSel('${key}')">${nodeSelOptions(sel)}</select>
       <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button>
       <button class="btn btn-secondary" style="padding:8px 12px" title="Reboot this TV" onclick="rebootNode('${key}')">⟲</button>
       <div id="m-${key}" style="grid-column:1/-1;display:${sel==='manual'?'flex':'none'};gap:8px">
-        <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP" ${locked?'disabled':''}>
-        <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port" ${locked?'disabled':''}>
+        <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP">
+        <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port">
       </div></div>`;
   }
   document.getElementById('gridConfig').innerHTML=h;
