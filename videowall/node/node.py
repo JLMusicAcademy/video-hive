@@ -49,6 +49,7 @@ CFG = {
     "media_dir": Path("media"),
     "socket": "/tmp/mpv-wall-socket",
     "headless": False,
+    "gpu_context": "x11egl",   # mpv GPU backend; "drm" renders with no X server
 }
 
 STATE = {
@@ -99,7 +100,9 @@ def start_mpv():
         print(f"[node {CFG['id']}] headless mode: MPV disabled")
         return
 
-    if "DISPLAY" not in os.environ:
+    # X11 backends need a DISPLAY; the DRM backend renders with no X server.
+    needs_x = CFG["gpu_context"].startswith("x11")
+    if needs_x and "DISPLAY" not in os.environ:
         os.environ["DISPLAY"] = ":0"
 
     try:
@@ -113,18 +116,21 @@ def start_mpv():
             os.system(f"ffmpeg -f lavfi -i color=black:s=64x64:r=1 "
                       f"-frames:v 1 {black} 2>/dev/null")
 
+    print(f"[node {CFG['id']}] starting mpv (gpu-context={CFG['gpu_context']})")
     try:
+        # stderr is left attached (-> the journal under systemd) so display/GPU
+        # failures are visible instead of silently swallowed.
         STATE["mpv"] = subprocess.Popen([
             "mpv",
             "--fullscreen", "--keep-open=yes",
             "--image-display-duration=inf", "--idle=yes", "--force-window=yes",
             "--no-osc", "--no-osd-bar", "--osd-level=0",
-            "--cursor-autohide=always",
-            "--hwdec=auto", "--vo=gpu", "--gpu-context=x11egl",
+            "--cursor-autohide=always", "--msg-level=all=error",
+            "--hwdec=auto", "--vo=gpu", f"--gpu-context={CFG['gpu_context']}",
             f"--video-rotate={CFG['rotation']}",
             f"--input-ipc-server={CFG['socket']}",
             str(black) if black.exists() else "--idle=yes",
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], stdout=subprocess.DEVNULL)
     except FileNotFoundError:
         print(f"[node {CFG['id']}] mpv not found -> headless mode")
         CFG["headless"] = True
@@ -297,6 +303,9 @@ def main():
     ap.add_argument("--rotation", type=int, default=0, choices=[0, 90, 180, 270])
     ap.add_argument("--media-dir", default=None)
     ap.add_argument("--socket", default=None)
+    ap.add_argument("--gpu-context", default="x11egl",
+                    help="mpv GPU backend: 'drm' renders with no X server "
+                         "(kiosk on a Pi); 'x11egl' needs an X display (default)")
     ap.add_argument("--headless", action="store_true",
                     help="run without MPV (dev/testing)")
     args = ap.parse_args()
@@ -304,6 +313,7 @@ def main():
     CFG["id"] = args.id
     CFG["rotation"] = args.rotation
     CFG["headless"] = args.headless
+    CFG["gpu_context"] = args.gpu_context
     CFG["media_dir"] = Path(args.media_dir or f"media_{args.id}")
     CFG["socket"] = args.socket or f"/tmp/mpv-wall-{args.id}.sock"
 

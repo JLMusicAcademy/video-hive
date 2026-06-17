@@ -219,8 +219,8 @@ For real TVs, `node/install-node.sh` turns a fresh Pi into a permanent display
 node in one step: **push it, run it, done.** It installs everything (mpv, a
 minimal X server, imagemagick, Flask), installs the node, and configures it to:
 
-- **boot into the node** when power is applied — no desktop, no login (it runs as
-  a systemd service that owns its own X on tty1, so boot is fast);
+- **boot into the node** when power is applied — no desktop, no login, no X server
+  (mpv renders straight to the screen via KMS/DRM as a systemd service, so boot is fast);
 - **restart on crash** (`Restart=always`);
 - **reboot the Pi if the whole system hangs** (hardware watchdog);
 - **come up ready** — pushed cues persist on disk, so after a reboot the node

@@ -60,9 +60,9 @@ say "Installing Video Hive node '$NODE_ID' (port $NODE_PORT, rotation $NODE_ROTA
 
 # --------------------------------------------------------------------------- #
 # 1. Packages
-#    mpv + a minimal X server (mpv uses x11egl) + imagemagick (black/identify
-#    images) + python3-flask (the node's HTTP server) + avahi (so the hub can
-#    reach this Pi as <id>.local).
+#    mpv renders straight to the screen via KMS/DRM -- no X server, no desktop.
+#    imagemagick (black/identify images), python3-flask (the node's HTTP
+#    server), mesa DRI (GL for mpv's drm backend), avahi (<id>.local mDNS).
 # --------------------------------------------------------------------------- #
 say "Installing packages (this is the slow part)"
 export DEBIAN_FRONTEND=noninteractive
@@ -70,7 +70,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
     mpv imagemagick \
     python3 python3-flask \
-    xserver-xorg xinit x11-xserver-utils \
+    libgl1-mesa-dri \
     avahi-daemon ca-certificates curl
 
 # --------------------------------------------------------------------------- #
@@ -107,26 +107,22 @@ MEDIA_DIR=$MEDIA_DIR
 EOF
 
 # --------------------------------------------------------------------------- #
-# 4. Launcher -- runs inside its own X (started by the service via xinit)
+# 4. Launcher -- runs the node with mpv on KMS/DRM (no X)
 # --------------------------------------------------------------------------- #
 cat > "$INSTALL_DIR/start-node.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 set -a; . /etc/videowall-node.conf; set +a
-# Keep the screen awake forever.
-xset s off -dpms s noblank 2>/dev/null || true
+# Stop the console blanking the screen behind mpv.
+setterm --blank 0 --powerdown 0 2>/dev/null || true
 exec python3 /opt/videowall/node.py \
     --id "$NODE_ID" --port "$NODE_PORT" \
-    --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR"
+    --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR" \
+    --gpu-context drm
 EOF
 chmod 755 "$INSTALL_DIR/start-node.sh"
 
-# Let a normal user start the X server (it needs root rights for the GPU/KMS).
-install -d -m 755 /etc/X11
-cat > /etc/X11/Xwrapper.config <<EOF
-allowed_users=anybody
-needs_root_rights=yes
-EOF
+# DRM/KMS + input device access for the kiosk user (no root, no X needed).
 usermod -aG tty,video,render,input "$RUN_USER" || true
 
 # --------------------------------------------------------------------------- #
@@ -139,9 +135,11 @@ Description=Video Hive display node ($NODE_ID)
 After=systemd-user-sessions.service network-online.target getty@tty1.service
 Wants=network-online.target
 Conflicts=getty@tty1.service
+StartLimitIntervalSec=0
 
 [Service]
 User=$RUN_USER
+# A login session on tty1 (seat0) so logind grants mpv the DRM master + input.
 PAMName=login
 WorkingDirectory=$INSTALL_DIR
 TTYPath=/dev/tty1
@@ -150,8 +148,7 @@ StandardOutput=journal
 StandardError=journal
 TTYReset=yes
 TTYVHangup=yes
-# Own X server on vt1; start-node.sh launches the node inside it.
-ExecStart=/usr/bin/xinit $INSTALL_DIR/start-node.sh -- :0 vt1 -nolisten tcp -nocursor
+ExecStart=$INSTALL_DIR/start-node.sh
 Restart=always
 RestartSec=2
 
