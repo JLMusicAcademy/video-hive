@@ -331,6 +331,50 @@ def all_node_items():
     return out
 
 
+def known_nodes():
+    """Every TV we can currently reach: those mapped in the grid plus any that
+    have self-registered. De-duplicated by host:port."""
+    targets = {}
+    for _k, node in all_node_items():
+        targets[(node["host"], node["port"])] = node
+    for reg in STATE["registry"].values():
+        targets.setdefault((reg["ip"], reg.get("port", 8001)),
+                           {"host": reg["ip"], "port": reg.get("port", 8001)})
+    return list(targets.values())
+
+
+def expected_cue_ids():
+    """Every node-side cue id that *should* exist -- across all workspaces."""
+    ids = set()
+    for p in WS_DIR.glob("*.json"):
+        try:
+            d = json.loads(p.read_text())
+        except Exception:
+            continue
+        for cid in d.get("cues", {}):
+            ids.add(node_cue_id(d["id"], cid))
+    return ids
+
+
+def forget_everywhere(cue_ids):
+    """Tell every reachable TV to forget these node-side cue ids (best effort)."""
+    cue_ids = list(cue_ids)
+    if not cue_ids:
+        return
+    nodes = known_nodes()
+
+    def _one(node):
+        for cid in cue_ids:
+            try:
+                requests.post(node_url(node, "/forget"),
+                              json={"cue_id": cid}, timeout=10)
+            except Exception:
+                pass
+    if nodes:
+        with ThreadPoolExecutor(max_workers=len(nodes)) as ex:
+            list(ex.map(_one, nodes))
+
+
 def local_ip():
     """Best-effort LAN IP of the hub -- the address QLab should send OSC to."""
     try:
@@ -767,12 +811,35 @@ def api_workspace_delete(wid):
     p = workspace_path(wid)
     if not p.exists():
         return jsonify({"error": "unknown workspace"}), 404
+    d = json.loads(p.read_text())
+    cue_ids = [node_cue_id(wid, cid) for cid in d.get("cues", {})]
     os.remove(p)
     shutil.rmtree(WS_DIR / wid, ignore_errors=True)
     if STATE["settings"].get("active_workspace") == wid:
         STATE["workspace"] = None
         active_workspace()
-    return jsonify({"ok": True})
+    forget_everywhere(cue_ids)              # wipe this workspace's slices off the TVs
+    return jsonify({"ok": True, "forgot": len(cue_ids)})
+
+
+@app.route("/api/nodes/purge", methods=["POST"])
+def api_nodes_purge():
+    """Housekeeping: tell every reachable TV to forget any staged cue that no
+    longer belongs to a workspace (orphans left by deletes / grid changes)."""
+    expected = expected_cue_ids()
+    results = {}
+    for node in known_nodes():
+        label = f"{node['host']}:{node['port']}"
+        try:
+            lib = requests.get(node_url(node, "/library"), timeout=5).json()
+            stale = [cid for cid in lib if cid not in expected]
+            for cid in stale:
+                requests.post(node_url(node, "/forget"),
+                              json={"cue_id": cid}, timeout=10)
+            results[label] = {"removed": stale}
+        except Exception as e:
+            results[label] = {"error": str(e)}
+    return jsonify({"ok": True, "nodes": results})
 
 
 @app.route("/api/workspace/default_image", methods=["POST"])
@@ -1040,8 +1107,8 @@ def api_cue_delete():
         ws["order"].remove(cue_id)
     save_workspace(ws)
     nid = node_cue_id(ws["id"], cue_id)
-    targets = [(k, eff_nodes()[k])
-               for k in cue["panels"] if k in eff_nodes()]
+    targets = [(k, rn) for k in cue["panels"]
+               if (rn := resolve_node(eff_nodes().get(k)))]
     post_targets(targets, "/forget", json={"cue_id": nid})
     shutil.rmtree(workspace_asset_dir(ws["id"], cue_id), ignore_errors=True)
     return jsonify({"ok": True, "cue_id": cue_id})

@@ -164,6 +164,7 @@
       <select id="wsSel" onchange="switchWorkspace(this.value)"></select>
       <button class="btn btn-secondary" onclick="newWorkspace()">＋ New</button>
       <button class="btn btn-secondary" onclick="saveAsWorkspace()">⧉ Save As…</button>
+      <button class="btn btn-danger" onclick="deleteWorkspace()">🗑 Delete</button>
       <div class="grow"></div>
       <div class="modeswitch">
         <button id="modeEdit" class="on" onclick="setMode('edit')">Edit</button>
@@ -275,6 +276,7 @@
     <label style="margin-top:18px">Discovered TVs <span class="sub">(nodes that announced themselves — no IP needed)</span></label>
     <div id="discList" class="sub" style="display:flex;gap:6px;flex-wrap:wrap">—</div>
     <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="purgeNodes()">🧹 Purge unused assets on TVs</button>
       <button class="btn btn-danger" style="flex:0 0 auto" onclick="rebootAll()">⟲ Reboot all TVs</button>
     </div>
   </div>
@@ -495,10 +497,17 @@ async function newWorkspace(){
   selectedCue=null; standbyId=null; await loadState(); await loadWorkspace(); log('created workspace '+name);
 }
 async function saveAsWorkspace(){
-  const name=prompt('Save a copy as (settings + grid only, no cues):', S.active_workspace.name+' copy'); if(!name) return;
+  const name=prompt('Save a copy as (settings only, no cues):', S.active_workspace.name+' copy'); if(!name) return;
   await fetch('/api/workspace/save_as',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
-  await loadState(); await loadWorkspace(); log('saved copy: '+name+' (change its grid, then build cues)');
+  await loadState(); await loadWorkspace(); log('saved copy: '+name);
+}
+async function deleteWorkspace(){
+  const id=S.active_workspace.id, name=S.active_workspace.name;
+  if(!confirm('Delete workspace “'+name+'”?\nThis removes its cues and wipes their slices off the TVs.')) return;
+  const r=await (await fetch('/api/workspace/'+encodeURIComponent(id),{method:'DELETE'})).json();
+  selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
+  await loadState(); await loadWorkspace(); log('deleted workspace '+name+' (forgot '+(r.forgot||0)+' cue(s) on TVs)');
 }
 
 // ----- drag media in to create cues, drag rows to reorder -----
@@ -940,6 +949,12 @@ async function rebootNode(key){
 async function rebootAll(){
   if(!confirm('Reboot ALL mapped TVs now?')) return;
   await fetch('/api/nodes/reboot_all',{method:'POST'}); log('reboot sent to all mapped TVs');
+}
+async function purgeNodes(){
+  if(!confirm('Remove staged cues from the TVs that no longer belong to any workspace?')) return;
+  const r=await (await fetch('/api/nodes/purge',{method:'POST'})).json();
+  const n=Object.entries(r.nodes||{}).map(([k,v])=>k+': '+(v.error?('error '+v.error):((v.removed||[]).length+' removed'))).join('  |  ');
+  log('purge — '+(n||'no TVs reachable'));
 }
 
 // drag & drop library
