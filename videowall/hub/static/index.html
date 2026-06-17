@@ -209,30 +209,34 @@
         <input type="text" id="cueName" placeholder="e.g. sunset, slide-1">
         <button class="btn btn-secondary" id="renameCueBtn" style="margin:0;display:none;white-space:nowrap" onclick="renameCue()">✎ Rename</button>
       </div>
-      <label>Mode</label>
-      <select id="buildMode" onchange="onModeChange()">
-        <option value="span">span — one master across the whole grid</option>
-        <option value="mirror">mirror — same image on every panel</option>
-        <option value="solo">solo — one image to one panel</option>
-        <option value="compose">compose — mix slices, full images &amp; default per panel</option>
-      </select>
-      <div id="simpleBuild">
-        <label>Content file — choose one to build (or replace) this cue</label>
-        <input type="file" id="buildFile" accept="image/*,video/*" onchange="onMasterPicked()">
+      <div id="advanced" style="display:none">
+        <label>Mode</label>
+        <select id="buildMode" onchange="onModeChange()">
+          <option value="span">span — one master across the whole grid</option>
+          <option value="mirror">mirror — same image on every panel</option>
+          <option value="solo">solo — one image to one panel</option>
+          <option value="compose">compose — mix slices, full images &amp; default per panel</option>
+        </select>
+        <div id="simpleBuild">
+          <label>Content file</label>
+          <input type="file" id="buildFile" accept="image/*,video/*" onchange="onMasterPicked()">
+        </div>
+        <div id="soloPick" style="display:none">
+          <label>Target panel</label>
+          <select id="soloTarget" onchange="updatePreview()"></select>
+        </div>
+        <div id="composeEditor" style="display:none">
+          <label>Add source images (Library &amp; Default always available)</label>
+          <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
+          <div id="composeTray" class="sub" style="margin-top:6px"></div>
+          <div id="composeGrid" style="margin-top:8px"></div>
+        </div>
       </div>
-      <div id="soloPick" style="display:none">
-        <label>Target panel</label>
-        <select id="soloTarget" onchange="updatePreview()"></select>
-      </div>
-      <div id="composeEditor" style="display:none">
-        <label>Add source images (Library &amp; Default always available)</label>
-        <input type="file" id="composeFiles" accept="image/*" multiple onchange="onComposeFiles()">
-        <div id="composeTray" class="sub" style="margin-top:6px"></div>
-        <div id="composeGrid" style="margin-top:8px"></div>
-      </div>
+      <div style="margin-top:10px"><span class="link" style="cursor:pointer;font-size:13px" onclick="toggleAdvanced()">⚙ Advanced — change mode (mirror / solo / compose)</span></div>
       <label style="margin-top:12px">Preview — how each TV will display this cue</label>
-      <div class="tvwrap"><div id="cueTv" class="sub">Pick an image to preview, or Build.</div></div>
+      <div class="tvwrap"><div id="cueTv" class="sub">Drop a file or use “Replace file…”.</div></div>
       <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-secondary" id="replaceBtn" onclick="document.getElementById('buildFile').click()" style="display:none">⤴ Replace file…</button>
         <button class="btn btn-primary" id="buildBtn" onclick="buildCue()" style="display:none">⤓ Build</button>
         <button class="btn btn-go" id="pushCueBtn" onclick="pushCue()" style="display:none">⤴ Push</button>
         <button class="btn btn-secondary" id="testFireBtn" onclick="testFire()" style="display:none">▶ Test</button>
@@ -600,7 +604,8 @@ function newCue(){
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
   document.getElementById('cueTv').innerHTML='<span class="sub">Pick an image to preview, or Build.</span>';
-  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='none');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn','replaceBtn'].forEach(x=>document.getElementById(x).style.display='none');
+  document.getElementById('advanced').style.display='none';
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
   document.getElementById('cueEditor').scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -620,7 +625,8 @@ async function openEditor(id){
   document.getElementById('buildMode').value=c.mode==='compose'?'compose':(c.mode);
   document.getElementById('buildFile').value=''; composeImages=[];
   document.getElementById('composeTray').innerHTML='';
-  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
+  ['pushCueBtn','testFireBtn','delCueBtn','renameCueBtn','replaceBtn'].forEach(x=>document.getElementById(x).style.display='inline-block');
+  document.getElementById('advanced').style.display=(c.mode && c.mode!=='span')?'block':'none';
   onModeChange();
   document.getElementById('cueEditor').style.display='block';
   // show the cue's built preview
@@ -639,6 +645,7 @@ async function onMasterPicked(){
   if(mode==='compose'){ updatePreview(); return; }
   if(document.getElementById('buildFile').files[0]) await buildCue();
 }
+function toggleAdvanced(){ const a=document.getElementById('advanced'); a.style.display=(a.style.display==='none')?'block':'none'; }
 function onModeChange(){
   const mode=document.getElementById('buildMode').value;
   document.getElementById('composeEditor').style.display=mode==='compose'?'block':'none';
