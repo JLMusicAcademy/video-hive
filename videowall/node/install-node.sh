@@ -93,6 +93,13 @@ else
     chmod 755 "$INSTALL_DIR/node.py"
 fi
 
+# Fail loudly now if we installed an out-of-date node.py, instead of leaving the
+# service in a silent restart loop (old node.py rejects --gpu-context -> exit 2).
+grep -q -- "--gpu-context" "$INSTALL_DIR/node.py" || die \
+"the installed node.py is out of date (no --gpu-context / DRM support). The copy
+ on '$NODE_BRANCH' is behind. Fix by copying the current node.py next to this
+ script and re-running, or set NODE_BRANCH=<feature-branch> / NODE_SRC=/path."
+
 # --------------------------------------------------------------------------- #
 # 3. Per-Pi config (the service reads this; edit + 'systemctl restart' to change)
 # --------------------------------------------------------------------------- #
@@ -113,8 +120,9 @@ cat > "$INSTALL_DIR/start-node.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 set -a; . /etc/videowall-node.conf; set +a
-# Stop the console blanking the screen behind mpv.
-setterm --blank 0 --powerdown 0 2>/dev/null || true
+# Stop the console blanking the screen behind mpv (write to the console, not
+# the journal, so its escape codes don't show up as "blob data" in the log).
+setterm --blank 0 --powerdown 0 >/dev/tty1 2>/dev/null || true
 exec python3 /opt/videowall/node.py \
     --id "$NODE_ID" --port "$NODE_PORT" \
     --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR" \
