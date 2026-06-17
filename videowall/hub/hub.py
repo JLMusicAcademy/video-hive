@@ -331,19 +331,6 @@ def all_node_items():
     return out
 
 
-def node_clock_offset(node):
-    """Measure (node_clock - hub_clock) for a node, half-RTT corrected. Lets the
-    hub schedule a flip in the node's own clock, so clock skew between TVs
-    doesn't break sync. Returns 0.0 if the node can't be reached."""
-    try:
-        t0 = time.time()
-        r = requests.get(node_url(node, "/status"), timeout=2)
-        t1 = time.time()
-        return float(r.json()["clock"]) - (t0 + (t1 - t0) / 2.0)
-    except Exception:
-        return 0.0
-
-
 def local_ip():
     """Best-effort LAN IP of the hub -- the address QLab should send OSC to."""
     try:
@@ -387,38 +374,16 @@ def fire_cue(cue_id, ws_id=None, loop=None, lead=None, force=False):
         return {"ok": False, "status": 409, "needs_push": True,
                 "error": "cue not pushed to displays"}
 
-    if lead is None:
-        lead = DEFAULT_VIDEO_LEAD if cue["type"] == "video" else DEFAULT_FIRE_LEAD
     if loop is None:
         loop = bool(cue.get("loop", False))
     nodes = ws_nodes(ws)
     nid = node_cue_id(ws["id"], cue_id)
     targets = [(k, rn) for k in cue["panels"]
                if (rn := resolve_node(nodes.get(k)))]
-
-    # Measure each TV's clock offset, then aim the flip at one instant expressed
-    # in *each TV's own clock*. The wall stays in sync even if the Pis' clocks
-    # disagree -- the hub compensates, so perfect NTP isn't required.
-    with ThreadPoolExecutor(max_workers=max(1, len(targets))) as ex:
-        offsets = dict(ex.map(lambda kn: (kn[0], node_clock_offset(kn[1])), targets))
-    common = time.time() + float(lead)
-
-    def _fire(kn):
-        k, node = kn
-        at = common + offsets.get(k, 0.0)
-        try:
-            r = requests.post(node_url(node, "/show_at"),
-                              json={"cue_id": nid, "at": at, "loop": bool(loop)},
-                              timeout=10)
-            return k, (r.ok, r.text[:120])
-        except Exception as e:
-            return k, (False, str(e))
-
-    with ThreadPoolExecutor(max_workers=max(1, len(targets))) as ex:
-        res = dict(ex.map(_fire, targets))
-    return {"ok": True, "cue_id": cue_id, "workspace": ws["id"],
-            "show_at": common, "offsets": {k: round(v, 3) for k, v in offsets.items()},
-            "nodes": res}
+    # Simplest possible: fire a "show now" to every panel's TV in parallel and
+    # let each display flip on receipt. No clock, no scheduling.
+    res = post_targets(targets, "/show", json={"cue_id": nid, "loop": bool(loop)})
+    return {"ok": True, "cue_id": cue_id, "workspace": ws["id"], "nodes": res}
 
 
 # --------------------------------------------------------------------------- #

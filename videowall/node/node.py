@@ -247,7 +247,11 @@ def stage():
 
 @app.route("/show", methods=["POST"])
 def show_now():
-    cue_id = (request.json or {}).get("cue_id")
+    data = request.json or {}
+    cue_id = data.get("cue_id")
+    cue = STATE["library"].get(cue_id)
+    if cue and "loop" in data:
+        cue["loop"] = bool(data["loop"])
     if not show_cue(cue_id):
         return jsonify({"error": f"cue {cue_id!r} not staged"}), 404
     return jsonify({"ok": True, "showing": cue_id})
