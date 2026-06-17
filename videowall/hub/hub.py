@@ -976,7 +976,10 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
         job["cue_id"] = cue_id
     except Exception as e:
         job["state"] = "error"
-        job["error"] = str(e)
+        msg = str(e)
+        if isinstance(e, FileNotFoundError) or "ffprobe" in msg or "ffmpeg" in msg:
+            msg = "ffmpeg/ffprobe not found on the hub -- install ffmpeg to build video cues"
+        job["error"] = msg
 
 
 @app.route("/api/cue/build_video/status/<job_id>")
@@ -1337,6 +1340,8 @@ def main():
     st = osc_status()
     print(f"QLab OSC  : {'udp/%d %s' % (st['port'], st['prefix']) if st['enabled'] else 'disabled'}"
           f"{'' if st['available'] else '  (python-osc not installed)'}")
+    have_ff = shutil.which("ffmpeg") and shutil.which("ffprobe")
+    print(f"Video     : {'ffmpeg ready' if have_ff else 'ffmpeg/ffprobe NOT FOUND -- video cues will fail (images are fine)'}")
     print(f"Open      : http://localhost:{args.port}")
     print("=" * 60)
     start_osc()
