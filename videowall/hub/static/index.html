@@ -173,6 +173,7 @@
     <div class="target" id="wsGridLine" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="wsGridText"></span>
       <button class="btn btn-secondary" style="margin:0;padding:6px 12px" onclick="customizeGrid()">⚙ Customize grid for this workspace</button>
+      <button class="btn btn-secondary" id="wsUseDefaultBtn" style="display:none;margin:0;padding:6px 12px" onclick="useSystemDefault()">↩ Use shared default grid</button>
     </div>
 
     <div class="gobar">
@@ -389,8 +390,9 @@ async function loadState(){
   let opts=''; for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;   // solo follows the effective grid
   document.getElementById('wsGridText').innerHTML=
-    `Grid: <b>${S.layout}</b> — ${S.ws_overrides?'custom for this workspace':'using system default'}`+
+    `Grid: <b>${S.layout}</b> — ${S.ws_overrides?'custom for this workspace (ignores the shared default)':'shared default'}`+
     `${S.wall_locked?' · 🔒 locked (has cues)':''}`;
+  document.getElementById('wsUseDefaultBtn').style.display=(S.ws_overrides && !S.wall_locked)?'inline-block':'none';
   renderWall();
 }
 function renderWall(){
