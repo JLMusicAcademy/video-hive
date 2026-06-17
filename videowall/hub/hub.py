@@ -25,6 +25,7 @@ import copy
 import io
 import json
 import os
+import secrets
 import shutil
 import socket
 import sys
@@ -36,8 +37,9 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import requests
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, session
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image, ImageOps
 
 import geometry
@@ -68,6 +70,11 @@ LIB_DIR = STORE / "library"
 WS_DIR = STORE / "workspaces"
 LIB_JSON = STORE / "library.json"
 SETTINGS_JSON = STORE / "settings.json"
+AUTH_JSON = STORE / "auth.json"
+STARTS_JSON = STORE / "starts.json"
+
+DEFAULT_ADMIN_PW = "admin123"
+DEFAULT_OPERATOR_PW = "operator123"
 
 STATE = {
     "config_path": None,
@@ -77,6 +84,7 @@ STATE = {
     "workspace": None,     # active workspace dict (cached)
     "build_jobs": {},
     "registry": {},        # node_id -> {ip, port, rotation, last_seen} (self-registered)
+    "auth": {},            # {secret, users: {name: {role, hash}}}
 }
 
 NODE_ONLINE_SEC = 60       # a registered node counts as "online" if seen within this
@@ -216,6 +224,63 @@ def load_settings():
 
 def save_settings():
     SETTINGS_JSON.write_text(json.dumps(STATE["settings"], indent=2))
+
+
+# --------------------------------------------------------------------------- #
+# Authentication: two roles (admin, operator) + a session login. Recovery:
+# power-cycle the hub 3 times in a row and admin resets to admin123.
+# --------------------------------------------------------------------------- #
+def save_auth():
+    AUTH_JSON.write_text(json.dumps(STATE["auth"], indent=2))
+
+
+def load_auth():
+    STATE["auth"] = json.loads(AUTH_JSON.read_text()) if AUTH_JSON.exists() else {}
+    STATE["auth"].setdefault("secret", secrets.token_hex(32))
+    users = STATE["auth"].setdefault("users", {})
+    if "admin" not in users:
+        users["admin"] = {"role": "admin",
+                          "hash": generate_password_hash(DEFAULT_ADMIN_PW)}
+    if "operator" not in users:
+        users["operator"] = {"role": "operator",
+                             "hash": generate_password_hash(DEFAULT_OPERATOR_PW)}
+    save_auth()
+    app.secret_key = STATE["auth"]["secret"]
+
+
+def reset_admin_password(pw=DEFAULT_ADMIN_PW):
+    STATE["auth"].setdefault("users", {})["admin"] = {
+        "role": "admin", "hash": generate_password_hash(pw)}
+    save_auth()
+
+
+def restart_recovery_check():
+    """If the hub starts 3 times in quick succession (power-cycled, each boot
+    within ~90s of the last), reset the admin password to the default. Rapid
+    crash-loop restarts (< ~8s apart) are ignored so they can't trip it."""
+    now = time.time()
+    starts = []
+    if STARTS_JSON.exists():
+        try:
+            starts = json.loads(STARTS_JSON.read_text())
+        except Exception:
+            starts = []
+    starts.append(now)
+    starts = starts[-5:]
+    STARTS_JSON.write_text(json.dumps(starts))
+    if len(starts) >= 3:
+        g1, g2 = starts[-1] - starts[-2], starts[-2] - starts[-3]
+        if 8 < g1 < 90 and 8 < g2 < 90:
+            reset_admin_password()
+            STARTS_JSON.write_text(json.dumps([]))   # consume, so it fires once
+            print("=" * 60)
+            print(" 3-restart recovery: admin password reset to "
+                  f"'{DEFAULT_ADMIN_PW}'")
+            print("=" * 60)
+
+
+def current_role():
+    return session.get("role")
 
 
 def library_image(img_id):
@@ -586,6 +651,87 @@ def record_cue(cue):
 def cue_public(cue):
     return {k: cue[k] for k in ("id", "name", "type", "mode", "panels",
                                 "pushed") if k in cue}
+
+
+# --------------------------------------------------------------------------- #
+# Auth gate + login routes
+# --------------------------------------------------------------------------- #
+# Endpoints operators may NOT use (admin-only): wall changes, deletes, system
+# maintenance, settings. Everything else only requires being logged in.
+ADMIN_ONLY = {
+    "api_layout", "api_nodes", "api_cue_delete", "api_workspace_delete",
+    "api_library_delete", "api_node_reboot", "api_nodes_reboot_all",
+    "api_node_update", "api_node_update_status", "api_node_update_code",
+    "api_nodes_purge", "api_settings", "api_qlab_osc", "api_qlab_export",
+    "api_set_user_password",
+}
+PUBLIC = {"index", "static", "api_login", "api_auth"}
+
+
+@app.before_request
+def _auth_gate():
+    ep = request.endpoint
+    if ep is None or ep in PUBLIC:
+        return
+    if not session.get("user"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "login required"}), 401
+        return                                   # let the page load (shows login)
+    if current_role() != "admin" and ep in ADMIN_ONLY:
+        return jsonify({"error": "admin privileges required"}), 403
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    d = request.json or {}
+    u = STATE["auth"]["users"].get(d.get("username", ""))
+    if u and check_password_hash(u["hash"], d.get("password", "")):
+        session.permanent = True
+        session["user"] = d["username"]
+        session["role"] = u["role"]
+        return jsonify({"ok": True, "user": d["username"], "role": u["role"]})
+    return jsonify({"error": "invalid username or password"}), 401
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    session.clear()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth")
+def api_auth():
+    return jsonify({"logged_in": bool(session.get("user")),
+                    "user": session.get("user"), "role": current_role()})
+
+
+@app.route("/api/account/password", methods=["POST"])
+def api_account_password():
+    d = request.json or {}
+    u = STATE["auth"]["users"].get(session.get("user"))
+    if not u:
+        return jsonify({"error": "not logged in"}), 401
+    if not check_password_hash(u["hash"], d.get("old", "")):
+        return jsonify({"error": "current password is incorrect"}), 403
+    new = d.get("new", "")
+    if len(new) < 4:
+        return jsonify({"error": "new password must be at least 4 characters"}), 400
+    u["hash"] = generate_password_hash(new)
+    save_auth()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/users/<name>/password", methods=["POST"])
+def api_set_user_password(name):
+    u = STATE["auth"]["users"].get(name)
+    if not u:
+        return jsonify({"error": "unknown user"}), 404
+    new = (request.json or {}).get("new", "")
+    if len(new) < 4:
+        return jsonify({"error": "password must be at least 4 characters"}), 400
+    u["hash"] = generate_password_hash(new)
+    save_auth()
+    return jsonify({"ok": True, "user": name})
 
 
 # --------------------------------------------------------------------------- #
@@ -1470,6 +1616,8 @@ def main():
 
     load_config(args.config)
     ensure_store()
+    load_auth()
+    restart_recovery_check()
     ws = active_workspace()
 
     s = osc_settings()

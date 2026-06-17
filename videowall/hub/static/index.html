@@ -136,16 +136,32 @@
     .gc { grid-template-columns:auto 1fr; } .gc .btn{ grid-column:1/-1; }
     .sidebar { width:84vw; max-width:300px; }
   }
+  body.role-operator .admin-only { display:none !important; }
+  #loginOverlay { position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(3px);
+                  display:none; align-items:center; justify-content:center; z-index:200; }
+  #loginOverlay .card { width:330px; }
+  #loginOverlay input { margin-bottom:6px; }
 </style>
 </head>
 <body>
+<div id="loginOverlay">
+  <div class="card">
+    <h2>🐝 Video Hive — sign in</h2>
+    <label>Username</label>
+    <input id="loginUser" type="text" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    <label>Password</label>
+    <input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" onclick="doLogin()">Sign in</button></div>
+    <div class="sub" id="loginMsg" style="margin-top:8px;color:#ef4444;min-height:16px"></div>
+  </div>
+</div>
 <button class="backdrop" id="backdrop" onclick="closeDrawer()"></button>
 <nav class="sidebar" id="sidebar">
   <div class="brand">🐝 Video Hive</div>
   <div class="navitem active" data-nav="workspace" onclick="tab('workspace')">🎬 Workspace</div>
-  <div class="navitem" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
+  <div class="navitem admin-only" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
   <div class="navitem" data-nav="library" onclick="tab('library')">🖼 Library</div>
-  <div class="navitem" data-nav="qlab" onclick="tab('qlab')">🎚 QLab</div>
+  <div class="navitem admin-only" data-nav="qlab" onclick="tab('qlab')">🎚 QLab</div>
   <div class="navitem" data-nav="activity" onclick="tab('activity')">🧾 Activity</div>
 </nav>
 
@@ -154,6 +170,9 @@
   <h1 id="paneTitle">Workspace</h1>
   <div class="grow"></div>
   <span class="sub" id="hLayout"></span>
+  <span class="sub" id="whoami"></span>
+  <button class="btn btn-secondary" style="padding:8px 10px" title="Change my password" onclick="changePw()">🔑</button>
+  <button class="btn btn-secondary" style="padding:8px 10px" onclick="doLogout()">Logout</button>
   <button class="btn btn-secondary" style="padding:8px 12px" onclick="refresh()">⟳</button>
 </div>
 
@@ -164,7 +183,7 @@
       <select id="wsSel" onchange="switchWorkspace(this.value)"></select>
       <button class="btn btn-secondary" onclick="newWorkspace()">＋ New</button>
       <button class="btn btn-secondary" onclick="saveAsWorkspace()">⧉ Save As…</button>
-      <button class="btn btn-danger" onclick="deleteWorkspace()">🗑 Delete</button>
+      <button class="btn btn-danger admin-only" onclick="deleteWorkspace()">🗑 Delete</button>
       <div class="grow"></div>
       <div class="modeswitch">
         <button id="modeEdit" class="on" onclick="setMode('edit')">Edit</button>
@@ -242,7 +261,7 @@
         <button class="btn btn-primary" id="buildBtn" onclick="buildCue()" style="display:none">⤓ Build</button>
         <button class="btn btn-go" id="pushCueBtn" onclick="pushCue()" style="display:none">⤴ Push</button>
         <button class="btn btn-secondary" id="testFireBtn" onclick="testFire()" style="display:none">▶ Test</button>
-        <button class="btn btn-danger" id="delCueBtn" onclick="deleteCue()" style="display:none">✕ Delete</button>
+        <button class="btn btn-danger admin-only" id="delCueBtn" onclick="deleteCue()" style="display:none">✕ Delete</button>
       </div>
       <div id="buildStatus" class="sub" style="margin-top:8px"></div>
     </div>
@@ -431,7 +450,7 @@ function renderCues(){
       <div class="col-type">${c.type}/${c.mode}</div>
       <div class="col-panels">${c.panels.length}</div>
       <div><span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span></div>
-      <div class="rowbtns">${editMode?`<button class="iconbtn del" title="Delete cue" onclick="event.stopPropagation();deleteCueRow('${c.id}')">✕</button>`:''}</div>
+      <div class="rowbtns">${editMode?`<button class="iconbtn del admin-only" title="Delete cue" onclick="event.stopPropagation();deleteCueRow('${c.id}')">✕</button>`:''}</div>
     </div>`).join('');
 }
 function renderStandby(){
@@ -766,7 +785,7 @@ async function loadLibraryTab(){
   const d=await (await fetch('/api/library?workspace='+encodeURIComponent(sel.value))).json();
   document.getElementById('libGrid').innerHTML=Object.entries(d.images).map(([id,m])=>`
     <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}${m.builtin?' ·global':''}</div>
-      ${m.builtin?'<div class="sub">built-in</div>':`<button class="btn btn-danger" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
+      ${m.builtin?'<div class="sub">built-in</div>':`<button class="btn btn-danger admin-only" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
     </div>`).join('');
 }
 function onLibFiles(){ uploadLibFiles(document.getElementById('libFile').files); }
@@ -992,9 +1011,38 @@ document.addEventListener('keydown',e=>{
     e.preventDefault(); go(); }
 });
 
+// ===== AUTH =====
+let ROLE=null, USER=null;
+async function checkAuth(){
+  let a; try{ a=await (await fetch('/api/auth')).json(); }catch(e){ a={logged_in:false}; }
+  if(!a.logged_in){ document.getElementById('loginOverlay').style.display='flex'; document.getElementById('loginUser').focus(); return false; }
+  USER=a.user; ROLE=a.role;
+  document.getElementById('loginOverlay').style.display='none';
+  document.getElementById('whoami').textContent=USER+' ('+ROLE+')';
+  document.body.classList.toggle('role-operator', ROLE!=='admin');
+  return true;
+}
+async function doLogin(){
+  const username=document.getElementById('loginUser').value.trim();
+  const password=document.getElementById('loginPass').value;
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+  if(!r.ok){ document.getElementById('loginMsg').textContent='Invalid username or password.'; return; }
+  location.reload();
+}
+async function doLogout(){ await fetch('/api/logout',{method:'POST'}); location.reload(); }
+async function changePw(){
+  const oldp=prompt('Current password:'); if(oldp===null) return;
+  const newp=prompt('New password (at least 4 characters):'); if(!newp) return;
+  const r=await (await fetch('/api/account/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old:oldp,new:newp})})).json();
+  alert(r.ok?'Password changed.':('Could not change password: '+(r.error||'error')));
+}
+
 setupCueDnD();
-loadState().then(()=>{ refresh(); loadWorkspace(); });
-setInterval(refresh,15000);
+checkAuth().then(ok=>{
+  if(!ok) return;                       // login overlay shown; reload after sign-in
+  loadState().then(()=>{ refresh(); loadWorkspace(); });
+  setInterval(refresh,15000);
+});
 </script>
 </body>
 </html>

@@ -202,6 +202,22 @@ Map each grid cell to a TV's host/port in the **Wall** tab's *TV placement* (or
 the config `nodes` block, `"row,col": {host, port}`). The **Identify** button
 flashes a cell's label on that TV so you can confirm placement.
 
+## Accounts & access
+
+The hub web UI requires sign-in, with two roles:
+
+- **admin** (default password `admin123`) — full control: the wall grid, TV
+  placement, deletes, OS/code updates, reboots, settings.
+- **operator** (default password `operator123`) — run the show: open/create
+  workspaces, build/upload content, push, and GO. Operators **cannot** change
+  the wall, delete workspaces/cues/content, run updates, or reboot — those
+  controls are hidden *and* refused by the server.
+
+Change passwords from the 🔑 button (top bar). **Recovery (no keyboard needed):**
+power-cycle the hub **3 times in a row** (let it boot each time, within ~90s
+between starts) and the admin password resets to `admin123`. Accounts live in
+`hub/store/auth.json` (gitignored); passwords are hashed.
+
 ## Hub setup (Raspberry Pi)
 
 `hub/install-hub.sh` installs the hub on a Pi as a production service:
