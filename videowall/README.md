@@ -236,7 +236,11 @@ ssh admin@<pi-address> 'sudo NODE_ID=tv00 NODE_ROTATION=0 bash install-node.sh'
 Per-Pi settings are environment variables (all optional): `NODE_ID` (default the
 hostname), `NODE_PORT` (8001), `NODE_ROTATION` (`0|90|180|270`), `RUN_USER` (the
 sudo user), `SET_HOSTNAME` (1 → also name the Pi `NODE_ID` for `<id>.local`
-mDNS). The script **fetches `node.py` itself**: it uses a `node.py` sitting next
+mDNS), and **`HUB`** (e.g. `HUB=hub.local:5000`) so the node **announces itself
+to the hub** — its IP is learned automatically and you assign it to a grid cell
+by name (Wall → *Discovered TVs* / *TV placement*), never typing an address.
+The hub learns the node's IP from the connection, so it keeps working even when
+DHCP hands the TV a new address. The script **fetches `node.py` itself**: it uses a `node.py` sitting next
 to it if present (copy both files for an offline install), otherwise downloads it
 from GitHub (`NODE_BRANCH`, `REPO_RAW`, or `NODE_SRC=/path` to override). On
 finish it prints the IP / `<id>.local` and port to enter in the hub's *TV

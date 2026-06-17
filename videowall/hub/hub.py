@@ -68,7 +68,10 @@ STATE = {
     "settings": {},
     "workspace": None,     # active workspace dict (cached)
     "build_jobs": {},
+    "registry": {},        # node_id -> {ip, port, rotation, last_seen} (self-registered)
 }
+
+NODE_ONLINE_SEC = 60       # a registered node counts as "online" if seen within this
 
 # Live state of the QLab->hub OSC listener (the bridge).
 OSC = {"server": None, "thread": None, "running": False, "port": None}
@@ -161,8 +164,27 @@ def ppu_for(panel):
     return panel.res_w / panel.active_w
 
 
+def resolve_node(entry):
+    """Turn a TV-placement entry into a concrete {host, port}, or None.
+
+    An entry is either a self-registered node by id -- {"node": "tv01"} -- which
+    we resolve to its last-known IP from the registry, or an explicit
+    {"host", "port"} (manual/legacy). Resolving by id means a TV's IP can change
+    (DHCP) and the mapping still works as long as it keeps registering."""
+    if not entry:
+        return None
+    if entry.get("node"):
+        reg = STATE["registry"].get(entry["node"])
+        if reg:
+            return {"host": reg["ip"], "port": reg.get("port", 8001)}
+        return None
+    if entry.get("host"):
+        return {"host": entry["host"], "port": entry.get("port", 8001)}
+    return None
+
+
 def node_for(row, col):
-    return eff_nodes().get(f"{row},{col}")
+    return resolve_node(eff_nodes().get(f"{row},{col}"))
 
 
 def slugify(s):
@@ -303,7 +325,12 @@ def post_targets(targets, path, **kwargs):
 
 
 def all_node_items():
-    return [(k, n) for k, n in eff_nodes().items()]
+    out = []
+    for k, n in eff_nodes().items():
+        rn = resolve_node(n)
+        if rn:
+            out.append((k, rn))
+    return out
 
 
 def local_ip():
@@ -356,7 +383,8 @@ def fire_cue(cue_id, ws_id=None, loop=None, lead=None, force=False):
     nodes = ws_nodes(ws)
     nid = node_cue_id(ws["id"], cue_id)
     show_at = time.time() + float(lead)
-    targets = [(k, nodes[k]) for k in cue["panels"] if k in nodes]
+    targets = [(k, rn) for k in cue["panels"]
+               if (rn := resolve_node(nodes.get(k)))]
     res = post_targets(targets, "/show_at",
                        json={"cue_id": nid, "at": show_at, "loop": bool(loop)})
     return {"ok": True, "cue_id": cue_id, "workspace": ws["id"],
@@ -610,12 +638,39 @@ def api_nodes_status():
     return jsonify({k: {"online": ok, "detail": d} for k, (ok, d) in res.items()})
 
 
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    """A display node announces itself here (id + port). We record the source
+    IP of the request, so a node never needs to know -- or report -- its own
+    address, and the operator never types one."""
+    d = request.json or {}
+    nid = d.get("id")
+    if not nid:
+        return jsonify({"error": "id required"}), 400
+    ip = d.get("ip") or request.remote_addr
+    STATE["registry"][nid] = {"ip": ip, "port": int(d.get("port", 8001)),
+                              "rotation": int(d.get("rotation", 0)),
+                              "last_seen": time.time()}
+    return jsonify({"ok": True, "id": nid, "ip": ip})
+
+
+@app.route("/api/nodes/discovered")
+def api_nodes_discovered():
+    """Nodes that have announced themselves -- the pick-list for TV placement."""
+    now = time.time()
+    nodes = [{"id": k, "ip": v["ip"], "port": v["port"], "rotation": v["rotation"],
+              "online": (now - v["last_seen"]) < NODE_ONLINE_SEC,
+              "age": round(now - v["last_seen"], 1)}
+             for k, v in sorted(STATE["registry"].items())]
+    return jsonify({"nodes": nodes})
+
+
 @app.route("/api/node/identify", methods=["POST"])
 def api_node_identify():
     key = (request.json or {}).get("key")
-    node = eff_nodes().get(key)
+    node = resolve_node(eff_nodes().get(key))
     if not node:
-        return jsonify({"error": "unknown node"}), 404
+        return jsonify({"error": "node not mapped or offline"}), 404
     return jsonify({"ok": True,
                     "result": post_targets([(key, node)], "/identify",
                                            json={"label": key})})

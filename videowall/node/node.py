@@ -37,6 +37,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 from flask import Flask, request, jsonify
@@ -45,11 +46,13 @@ app = Flask(__name__)
 
 CFG = {
     "id": "node",
+    "port": 8001,
     "rotation": 0,
     "media_dir": Path("media"),
     "socket": "/tmp/mpv-wall-socket",
     "headless": False,
     "gpu_context": "x11egl",   # mpv GPU backend; "drm" renders with no X server
+    "hub": None,               # if set, announce ourselves to the hub here
 }
 
 STATE = {
@@ -79,6 +82,32 @@ def load_library():
 def save_library():
     CFG["media_dir"].mkdir(parents=True, exist_ok=True)
     manifest_path().write_text(json.dumps(STATE["library"], indent=2))
+
+
+# --------------------------------------------------------------------------- #
+# Self-registration: announce this node to the hub so the operator never types
+# an IP. The hub records the source address of our request, so we don't even
+# need to know our own IP -- we only need to know the hub.
+# --------------------------------------------------------------------------- #
+def register_with_hub():
+    if not CFG["hub"]:
+        return
+    url = CFG["hub"].rstrip("/") + "/api/register"
+    body = json.dumps({"id": CFG["id"], "port": CFG["port"],
+                       "rotation": CFG["rotation"]}).encode()
+
+    def _loop():
+        while True:
+            try:
+                req = urllib.request.Request(
+                    url, data=body, headers={"Content-Type": "application/json"})
+                urllib.request.urlopen(req, timeout=5).read()
+            except Exception:
+                pass            # hub may be down/booting; just keep trying
+            time.sleep(20)
+
+    threading.Thread(target=_loop, daemon=True).start()
+    print(f"[node {CFG['id']}] announcing to hub at {CFG['hub']}")
 
 
 # --------------------------------------------------------------------------- #
@@ -306,14 +335,19 @@ def main():
     ap.add_argument("--gpu-context", default="x11egl",
                     help="mpv GPU backend: 'drm' renders with no X server "
                          "(kiosk on a Pi); 'x11egl' needs an X display (default)")
+    ap.add_argument("--hub", default=None,
+                    help="hub base URL (e.g. http://hub.local:5000) to "
+                         "auto-register with, so its IP need not be typed")
     ap.add_argument("--headless", action="store_true",
                     help="run without MPV (dev/testing)")
     args = ap.parse_args()
 
     CFG["id"] = args.id
+    CFG["port"] = args.port
     CFG["rotation"] = args.rotation
     CFG["headless"] = args.headless
     CFG["gpu_context"] = args.gpu_context
+    CFG["hub"] = args.hub
     CFG["media_dir"] = Path(args.media_dir or f"media_{args.id}")
     CFG["socket"] = args.socket or f"/tmp/mpv-wall-{args.id}.sock"
 
@@ -321,6 +355,7 @@ def main():
     print(f"[node {CFG['id']}] starting on :{args.port} "
           f"rotation={CFG['rotation']} headless={CFG['headless']}")
     start_mpv()
+    register_with_hub()
     app.run(host="0.0.0.0", port=args.port, threaded=True)
 
 

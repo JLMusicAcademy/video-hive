@@ -270,7 +270,9 @@
     </select>
     <div class="grid" id="wallGrid"></div>
     <div class="target" id="authoring"></div>
-    <label style="margin-top:18px">TV placement — map each cell to a TV's host/port</label>
+    <label style="margin-top:18px">Discovered TVs <span class="sub">(nodes that announced themselves — no IP needed)</span></label>
+    <div id="discList" class="sub" style="display:flex;gap:6px;flex-wrap:wrap">—</div>
+    <label style="margin-top:18px">TV placement — assign each cell to a discovered TV (by name)</label>
     <div id="gridConfig"></div>
     <button class="btn btn-primary" onclick="saveNodes()">💾 Save TV placement</button>
   </div>
@@ -344,7 +346,7 @@
 </div>
 
 <script>
-let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default';
+let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default', DISC=[];
 let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
@@ -356,7 +358,7 @@ function tab(name){
   document.querySelectorAll('.tabpane').forEach(p=>p.style.display=p.dataset.pane===name?'block':'none');
   document.getElementById('paneTitle').textContent=TITLES[name]||name;
   if(name==='workspace'){ loadWorkspace(); }
-  if(name==='wall'){ renderWall(); }
+  if(name==='wall'){ renderWall(); loadDiscovered(); }
   if(name==='library'){ loadLibraryTab(); }
   if(name==='qlab'){ loadQlab(); }
   closeDrawer();
@@ -410,6 +412,7 @@ async function useSystemDefault(){
 async function refresh(){
   const r=await (await fetch('/api/nodes/status')).json();
   nodeStatus={}; for(const k in r) nodeStatus[k]=r[k].online; renderGrid();
+  loadDiscovered();
 }
 
 // ===== WORKSPACE =====
@@ -855,22 +858,49 @@ async function setFit(){ const g=wallG();
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,fit:document.getElementById('fit').value,target:gridTarget})}); await loadState(); }
 async function setBezel(){ const g=wallG();
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,bezel_comp:document.getElementById('bezel').value==='1',target:gridTarget})}); await loadState(); log('bezel handling changed ('+gridTarget+')'); }
+function nodeSelOptions(sel){
+  let o=`<option value="">— unassigned —</option>`;
+  o+=DISC.map(d=>`<option value="node:${d.id}" ${sel==='node:'+d.id?'selected':''}>${d.id} — ${d.ip}${d.online?'':' (offline)'}</option>`).join('');
+  // keep a manually-assigned id selectable even if it isn't currently registered
+  if(sel.startsWith('node:') && !DISC.some(d=>'node:'+d.id===sel)) o+=`<option value="${sel}" selected>${sel.slice(5)} (not registered)</option>`;
+  o+=`<option value="manual" ${sel==='manual'?'selected':''}>manual host/port…</option>`;
+  return o;
+}
 function renderGridConfig(){
   if(!S) return; const g=wallG(), locked=(gridTarget==='workspace'&&S.wall_locked); let h='';
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
-    const key=`${r},${c}`, n=(g.nodes||{})[key]||{host:'',port:''};
-    h+=`<div class="gc"><span class="pill">${key}</span>
-      <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP" ${locked?'disabled':''}>
-      <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port" ${locked?'disabled':''}>
-      <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button></div>`;
+    const key=`${r},${c}`, n=(g.nodes||{})[key]||{};
+    const sel = n.node ? ('node:'+n.node) : (n.host ? 'manual' : '');
+    h+=`<div class="gc" style="grid-template-columns:auto 1fr auto">
+      <span class="pill">${key}</span>
+      <select id="n-${key}" onchange="onNodeSel('${key}')" ${locked?'disabled':''}>${nodeSelOptions(sel)}</select>
+      <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button>
+      <div id="m-${key}" style="grid-column:1/-1;display:${sel==='manual'?'flex':'none'};gap:8px">
+        <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP" ${locked?'disabled':''}>
+        <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port" ${locked?'disabled':''}>
+      </div></div>`;
   }
   document.getElementById('gridConfig').innerHTML=h;
+}
+function onNodeSel(key){ document.getElementById('m-'+key).style.display=(document.getElementById('n-'+key).value==='manual')?'flex':'none'; }
+function renderDiscovered(){
+  const el=document.getElementById('discList'); if(!el) return;
+  el.innerHTML = DISC.length
+    ? DISC.map(d=>`<span class="pill" title="${d.ip}:${d.port}">${d.online?'🟢':'⚪'} ${d.id} — ${d.ip}</span>`).join('')
+    : 'No TVs registered yet. Install nodes with the hub address (HUB=…) and they appear here.';
+}
+async function loadDiscovered(){
+  try{ DISC=(await (await fetch('/api/nodes/discovered')).json()).nodes||[]; }catch(e){ DISC=[]; }
+  renderDiscovered();
+  const wallVisible=document.querySelector('.tabpane[data-pane="wall"]').style.display!=='none';
+  if(wallVisible) renderGridConfig();
 }
 async function saveNodes(){
   const g=wallG(), nodes={};
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
-    const key=`${r},${c}`, host=document.getElementById('h-'+key).value.trim(), port=parseInt(document.getElementById('p-'+key).value);
-    if(host&&port) nodes[key]={host,port};
+    const key=`${r},${c}`, v=document.getElementById('n-'+key).value;
+    if(v.startsWith('node:')) nodes[key]={node:v.slice(5)};
+    else if(v==='manual'){ const host=document.getElementById('h-'+key).value.trim(), port=parseInt(document.getElementById('p-'+key).value); if(host&&port) nodes[key]={host,port}; }
   }
   const r=await fetch('/api/nodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes,target:gridTarget})});
   if(r.status===409){ alert('This workspace grid is locked.'); return; }

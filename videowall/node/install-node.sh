@@ -26,6 +26,8 @@
 #   RUN_USER        user the kiosk runs as             (default: the sudo user, or admin)
 #   SET_HOSTNAME    1 = set the Pi's hostname to NODE_ID for <id>.local mDNS
 #                   0 = leave hostname alone           (default: 1)
+#   HUB             hub address so the node self-registers and you never type
+#                   its IP -- e.g. hub.local:5000 (default: empty = no register)
 #   NODE_SRC        path to a local node.py to install (skips the download)
 #   NODE_BRANCH     git branch to download node.py from (default: main)
 #   REPO_RAW        raw repo base URL (default: this project's GitHub)
@@ -38,6 +40,7 @@ set -euo pipefail
 NODE_PORT="${NODE_PORT:-8001}"
 NODE_ROTATION="${NODE_ROTATION:-0}"
 SET_HOSTNAME="${SET_HOSTNAME:-1}"
+HUB="${HUB:-}"
 NODE_BRANCH="${NODE_BRANCH:-main}"
 REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/JLMusicAcademy/video-hive}"
 INSTALL_DIR=/opt/videowall
@@ -115,6 +118,7 @@ NODE_ID=$NODE_ID
 NODE_PORT=$NODE_PORT
 NODE_ROTATION=$NODE_ROTATION
 MEDIA_DIR=$MEDIA_DIR
+HUB=$HUB
 EOF
 
 # --------------------------------------------------------------------------- #
@@ -129,11 +133,17 @@ set -a; . /etc/videowall-node.conf; set +a
 export DISPLAY="${DISPLAY:-:0}"
 # Keep the desktop from blanking / powering down the screen.
 xset s off -dpms s noblank 2>/dev/null || true
+# Self-register with the hub if one was configured (so its IP is auto-learned).
+HUB_ARG=()
+if [ -n "${HUB:-}" ]; then
+    case "$HUB" in http*) ;; *) HUB="http://$HUB" ;; esac
+    HUB_ARG=(--hub "$HUB")
+fi
 while true; do
     python3 /opt/videowall/node.py \
         --id "$NODE_ID" --port "$NODE_PORT" \
         --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR" \
-        --gpu-context x11egl 2>&1 | systemd-cat -t videowall-node
+        --gpu-context x11egl "${HUB_ARG[@]}" 2>&1 | systemd-cat -t videowall-node
     sleep 2
 done
 EOF
