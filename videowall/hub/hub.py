@@ -119,11 +119,9 @@ def default_wall():
 
 
 def effective_config():
-    """The grid the active workspace actually uses: its own override if it has
-    one, else the live system default. A workspace gets its own override either
-    explicitly (Workspace page) or as a snapshot taken when its first cue is
-    built (so later changes to the system default never break its slices)."""
-    return active_workspace().get("wall") or default_wall()
+    """The one wall grid, system-wide. Every workspace uses it -- there is no
+    per-workspace grid."""
+    return default_wall()
 
 
 def grid_view(grid):
@@ -528,8 +526,6 @@ def distribute_cue(ws_id, cue):
 def record_cue(cue):
     """Add/replace a cue in the active workspace (as a draft -- not pushed)."""
     ws = active_workspace()
-    if not ws.get("wall"):                       # freeze the grid at first build
-        ws["wall"] = copy.deepcopy(default_wall())
     cue["pushed"] = False
     cue["built_at"] = time.time()
     ws["cues"][cue["id"]] = cue
@@ -556,72 +552,40 @@ def api_state():
     ws = active_workspace()
     eff = grid_view(effective_config())
     return jsonify({
-        **eff,                                   # top-level = workspace's effective grid
+        **eff,                                   # the one wall grid
         "layouts": list(geometry.LAYOUTS.keys()),
-        "default_grid": grid_view(default_wall()),
-        "ws_overrides": bool(ws.get("wall")),
-        "wall_locked": len(ws["cues"]) > 0,      # the workspace grid freezes once sliced
         "active_workspace": {"id": ws["id"], "name": ws["name"],
                              "default_image": default_image_id()},
     })
 
 
-def _target_grid(target):
-    """Return (grid_dict, save_fn, locked) for 'default' or 'workspace'."""
-    if target == "workspace":
-        ws = active_workspace()
-        if not ws.get("wall"):
-            ws["wall"] = copy.deepcopy(default_wall())   # start an override from the default
-        return ws["wall"], (lambda: save_workspace(ws)), bool(ws["cues"])
-    return STATE["config"], save_config, False           # system default: never locked
-
-
 @app.route("/api/layout", methods=["POST"])
 def api_layout():
-    """Set a grid's layout / fit / bezel. target='default' (system default, the
-    Wall tab) or 'workspace' (this workspace's override)."""
+    """Set the wall grid's layout / fit / bezel (one grid, system-wide)."""
     data = request.json or {}
     name = data.get("layout")
     if name not in geometry.LAYOUTS:
         return jsonify({"error": f"unknown layout {name!r}"}), 400
-    grid, save, locked = _target_grid(data.get("target", "default"))
-    if locked:
-        return jsonify({"error": "this workspace's grid is locked (it has cues). "
-                        "Use Save As to change it.", "locked": True}), 409
+    grid = STATE["config"]
     grid["layout"] = name
     if "fit" in data:
         grid["fit"] = data["fit"]
     if "bezel_comp" in data:
         grid["bezel_comp"] = bool(data["bezel_comp"])
-    save()
+    save_config()
     return jsonify({"ok": True})
 
 
 @app.route("/api/nodes", methods=["POST"])
 def api_nodes():
-    """Set a grid's TV placement. target='default' or 'workspace'. TV placement
-    is which physical TV sits in each cell -- independent of how cues are
-    sliced, so it stays editable even when the grid is otherwise locked."""
+    """Set the wall's TV placement (which physical TV sits in each cell)."""
     data = request.json or {}
     nodes = data.get("nodes")
     if not isinstance(nodes, dict):
         return jsonify({"error": "nodes must be an object"}), 400
-    grid, save, _locked = _target_grid(data.get("target", "default"))
-    grid["nodes"] = nodes
-    save()
+    STATE["config"]["nodes"] = nodes
+    save_config()
     return jsonify({"ok": True, "nodes": nodes})
-
-
-@app.route("/api/workspace/grid/inherit", methods=["POST"])
-def api_workspace_grid_inherit():
-    """Drop this workspace's grid override so it follows the system default."""
-    ws = active_workspace()
-    if ws["cues"]:
-        return jsonify({"error": "grid is locked: this workspace has cues.",
-                        "locked": True}), 409
-    ws.pop("wall", None)
-    save_workspace(ws)
-    return jsonify({"ok": True})
 
 
 @app.route("/api/nodes/status")
@@ -771,12 +735,11 @@ def api_workspaces_create():
 
 @app.route("/api/workspace/save_as", methods=["POST"])
 def api_workspace_save_as():
-    """Duplicate the active workspace's settings (wall + default image) into a
-    new, empty workspace -- so you can change the grid and build fresh cues."""
+    """Duplicate the active workspace's settings (default image) into a new,
+    empty workspace."""
     src = active_workspace()
     name = (request.json or {}).get("name") or f"{src['name']} copy"
     ws = create_workspace(name)
-    ws["wall"] = copy.deepcopy(src.get("wall") or default_wall())
     ws["default_image"] = src.get("default_image")
     save_workspace(ws)
     open_workspace(ws["id"])
@@ -980,8 +943,6 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
                "assets": assets, "loop": False, "created": time.time(),
                "pushed": False, "built_at": time.time()}
         ws = json.loads(workspace_path(ws_id).read_text())
-        if not ws.get("wall"):                   # freeze the grid at first build
-            ws["wall"] = copy.deepcopy(default_wall())
         ws["cues"][cue_id] = cue
         if cue_id not in ws["order"]:
             ws["order"].append(cue_id)

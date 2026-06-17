@@ -100,6 +100,7 @@
            font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; min-width:64px; }
   .panel.portrait { aspect-ratio:9/16; }
   .panel.online { border-color:#22c55e; } .panel.offline { border-color:#f87171; }
+  .panel.selpanel { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.35); }
   .dot { width:9px; height:9px; border-radius:50%; position:absolute; top:6px; right:6px; background:#cbd5e1; }
   .dot.online { background:#22c55e; } .dot.offline { background:#f87171; }
   .target { background:#f1f5ff; border:1px solid #e0e7ff; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; color:#3730a3; }
@@ -172,8 +173,7 @@
 
     <div class="target" id="wsGridLine" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="wsGridText"></span>
-      <button class="btn btn-secondary" style="margin:0;padding:6px 12px" onclick="customizeGrid()">⚙ Customize grid for this workspace</button>
-      <button class="btn btn-secondary" id="wsUseDefaultBtn" style="display:none;margin:0;padding:6px 12px" onclick="useSystemDefault()">↩ Use shared default grid</button>
+      <button class="btn btn-secondary" style="margin:0;padding:6px 12px" onclick="tab('wall')">⚙ Edit wall grid</button>
     </div>
 
     <div class="gobar">
@@ -249,16 +249,9 @@
 
   <!-- WALL -->
   <div class="card tabpane" data-pane="wall" style="display:none">
-    <h2 id="wallH2">Wall — system default grid</h2>
-    <div class="modeswitch" style="margin-top:6px">
-      <button id="gtDefault" class="on" onclick="setGridTarget('default')">System default</button>
-      <button id="gtWorkspace" onclick="setGridTarget('workspace')">This workspace</button>
-    </div>
-    <div class="sub" id="wallScope" style="margin-top:8px"></div>
-    <div class="btn-row" style="margin-top:8px">
-      <button class="btn btn-secondary" id="useDefaultBtn" style="display:none" onclick="useSystemDefault()">↩ Use system default for this workspace</button>
-    </div>
-    <div class="locknote" id="wallLockNote" style="display:none">🔒 This workspace's grid is locked because it already has cues (sliced for this grid). Use <b>Save As</b> (Workspace page) to make a copy with a different grid. TV placement stays editable.</div>
+    <h2>Wall grid</h2>
+    <div class="sub">The grid for your physical wall — set it once; every workspace uses it.</div>
+
     <label>Layout</label>
     <div class="layouts" id="layouts"></div>
     <label>Fit (how a master maps onto the wall)</label>
@@ -272,14 +265,16 @@
       <option value="1">Compensate — continuous image, hides slivers behind bezels (photo/video)</option>
       <option value="0">Show everything — no content lost, lines jump at seams (text/graphics)</option>
     </select>
+
+    <label style="margin-top:14px">Wall — click a panel to assign its TV</label>
     <div class="grid" id="wallGrid"></div>
     <div class="target" id="authoring"></div>
+
+    <div id="cellEditor" class="editor" style="display:none;margin-top:14px"></div>
+
     <label style="margin-top:18px">Discovered TVs <span class="sub">(nodes that announced themselves — no IP needed)</span></label>
     <div id="discList" class="sub" style="display:flex;gap:6px;flex-wrap:wrap">—</div>
-    <label style="margin-top:18px">TV placement — assign each cell to a discovered TV (by name)</label>
-    <div id="gridConfig"></div>
-    <div class="btn-row" style="margin-top:4px">
-      <button class="btn btn-primary" style="flex:0 0 auto" onclick="saveNodes()">💾 Save TV placement</button>
+    <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-danger" style="flex:0 0 auto" onclick="rebootAll()">⟲ Reboot all TVs</button>
     </div>
   </div>
@@ -361,7 +356,7 @@
 </div>
 
 <script>
-let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default', DISC=[];
+let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default', DISC=[], selectedCell=null;
 let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
@@ -380,50 +375,29 @@ function tab(name){
 }
 
 function wallG(){
-  return gridTarget==='default' ? S.default_grid
-    : {layout:S.layout,fit:S.fit,bezel_comp:S.bezel_comp,rows:S.rows,cols:S.cols,
-       orientation:S.orientation,nodes:S.nodes,authoring:S.authoring,panel:S.panel};
+  return {layout:S.layout,fit:S.fit,bezel_comp:S.bezel_comp,rows:S.rows,cols:S.cols,
+          orientation:S.orientation,nodes:S.nodes,authoring:S.authoring,panel:S.panel};
 }
 async function loadState(){
   S=await (await fetch('/api/state')).json();
   document.getElementById('hLayout').textContent=S.active_workspace.name+' · '+S.layout;
   let opts=''; for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
-  document.getElementById('soloTarget').innerHTML=opts;   // solo follows the effective grid
-  document.getElementById('wsGridText').innerHTML=
-    `Grid: <b>${S.layout}</b> — ${S.ws_overrides?'custom for this workspace (ignores the shared default)':'shared default'}`+
-    `${S.wall_locked?' · 🔒 locked (has cues)':''}`;
-  document.getElementById('wsUseDefaultBtn').style.display=(S.ws_overrides && !S.wall_locked)?'inline-block':'none';
+  document.getElementById('soloTarget').innerHTML=opts;
+  document.getElementById('wsGridText').innerHTML=`Wall grid: <b>${S.layout}</b>`;
   renderWall();
 }
 function renderWall(){
   if(!S) return;
-  const g=wallG(), wsT=(gridTarget==='workspace'), locked = wsT && S.wall_locked;
-  document.getElementById('gtDefault').classList.toggle('on',!wsT);
-  document.getElementById('gtWorkspace').classList.toggle('on',wsT);
-  document.getElementById('wallH2').textContent = wsT?('Wall — grid for “'+S.active_workspace.name+'”'):'Wall — system default grid';
-  document.getElementById('wallScope').innerHTML = wsT
-    ? (S.ws_overrides?'This workspace overrides the system default. Changes apply only here.'
-                     :'Editing here creates a custom grid for this workspace (otherwise it follows the system default).')
-    : 'The standard grid for the space — a one-time setup. Workspaces use it unless they set their own.';
-  document.getElementById('useDefaultBtn').style.display=(wsT && S.ws_overrides && !locked)?'inline-block':'none';
-  document.getElementById('wallLockNote').style.display=locked?'block':'none';
-  document.getElementById('fit').value=g.fit; document.getElementById('fit').disabled=locked;
-  document.getElementById('bezel').value=g.bezel_comp?'1':'0'; document.getElementById('bezel').disabled=locked;
+  const g=wallG();
+  document.getElementById('fit').value=g.fit;
+  document.getElementById('bezel').value=g.bezel_comp?'1':'0';
   document.getElementById('layouts').innerHTML=S.layouts.map(l=>
-    `<div class="lay ${l===g.layout?'active':''} ${locked?'disabled':''}" ${locked?'':`onclick="setLayout('${l}')"`}>${l}</div>`).join('');
+    `<div class="lay ${l===g.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
   const a=g.authoring, comp=g.bezel_comp, main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${main.w}×${main.h}px</b> (${main.aspect}, ${comp?'bezel-compensated':'no bezel comp'})`+
     `<br><span class="sub">other mode: ${alt.w}×${alt.h}px (${alt.aspect})</span>`;
-  renderGrid(); renderGridConfig();
-}
-function setGridTarget(t){ gridTarget=t; renderWall(); }
-function customizeGrid(){ gridTarget='workspace'; tab('wall'); }
-async function useSystemDefault(){
-  if(!confirm('Use the system default grid for this workspace?')) return;
-  const r=await fetch('/api/workspace/grid/inherit',{method:'POST'});
-  if(r.status===409){ alert('Grid is locked (this workspace has cues).'); return; }
-  await loadState(); await refresh(); log('workspace follows the system default grid');
+  renderGrid(); renderCellEditor();
 }
 async function refresh(){
   const r=await (await fetch('/api/nodes/status')).json();
@@ -886,20 +860,57 @@ function renderGrid(){
   const portrait=g.orientation==='portrait'; let h='';
   for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
     const key=`${r},${c}`, st=nodeStatus[key], cls=st===undefined?'':(st?'online':'offline');
-    h+=`<div class="panel ${portrait?'portrait':''} ${cls}" title="${key}">${key}<span class="dot ${cls}"></span></div>`;
+    const n=(g.nodes||{})[key], who=n?(n.node||n.host||''):'';
+    h+=`<div class="panel ${portrait?'portrait':''} ${cls} ${key===selectedCell?'selpanel':''}" title="${key}" style="cursor:pointer" onclick="selectCell('${key}')">
+      <div>${key}</div>${who?`<div style="font-size:10px;color:#64748b">${who}</div>`:'<div style="font-size:10px;color:#cbd5e1">tap to assign</div>'}<span class="dot ${cls}"></span></div>`;
   }
   el.innerHTML=h;
 }
+function selectCell(key){ selectedCell=(selectedCell===key?null:key); renderGrid(); renderCellEditor(); }
+function closeCell(){ selectedCell=null; renderGrid(); renderCellEditor(); }
+function renderCellEditor(){
+  const el=document.getElementById('cellEditor'); if(!el||!S) return;
+  if(!selectedCell){ el.style.display='none'; return; }
+  const key=selectedCell, n=(wallG().nodes||{})[key]||{};
+  const sel = n.node ? ('node:'+n.node) : (n.host ? 'manual' : '');
+  const st=nodeStatus[key], stTxt = st===undefined?'':(st?' · 🟢 online':' · ⚪ offline');
+  el.style.display='block';
+  el.innerHTML=`
+    <h2>Display at cell ${key}${stTxt}</h2>
+    <label>Assign TV</label>
+    <select id="ce-node" onchange="onCeNode()">${nodeSelOptions(sel)}</select>
+    <div id="ce-manual" style="display:${sel==='manual'?'flex':'none'};gap:8px;margin-top:8px">
+      <input type="text" id="ce-host" value="${n.host||''}" placeholder="host / IP">
+      <input type="text" id="ce-port" value="${n.port||''}" placeholder="port">
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-primary" style="flex:0 0 auto" onclick="saveCell()">💾 Save</button>
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="identify('${key}')">Identify</button>
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="rebootNode('${key}')">⟲ Reboot</button>
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="closeCell()">Close</button>
+    </div>`;
+}
+function onCeNode(){ document.getElementById('ce-manual').style.display=(document.getElementById('ce-node').value==='manual')?'flex':'none'; }
+async function saveCell(){
+  if(!selectedCell) return;
+  const key=selectedCell, v=document.getElementById('ce-node').value;
+  const nodes=Object.assign({}, wallG().nodes||{});
+  if(v.startsWith('node:')) nodes[key]={node:v.slice(5)};
+  else if(v==='manual'){ const host=document.getElementById('ce-host').value.trim(), port=parseInt(document.getElementById('ce-port').value);
+    if(host&&port) nodes[key]={host,port}; else delete nodes[key]; }
+  else delete nodes[key];
+  await fetch('/api/nodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes})});
+  log('saved TV at '+key); await loadState(); await refresh();
+}
 async function setLayout(l){
-  const r=await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l,target:gridTarget})});
-  if(r.status===409){ const d=await r.json(); alert(d.error); return; }
-  await loadState(); await refresh();
-  if(document.getElementById('buildMode').value==='compose') renderComposeGrid(); log('layout('+gridTarget+') -> '+l);
+  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:l})});
+  selectedCell=null; await loadState(); await refresh();
+  if(document.getElementById('buildMode').value==='compose') renderComposeGrid(); log('wall layout -> '+l);
 }
 async function setFit(){ const g=wallG();
-  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,fit:document.getElementById('fit').value,target:gridTarget})}); await loadState(); }
+  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,fit:document.getElementById('fit').value})}); await loadState(); }
 async function setBezel(){ const g=wallG();
-  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,bezel_comp:document.getElementById('bezel').value==='1',target:gridTarget})}); await loadState(); log('bezel handling changed ('+gridTarget+')'); }
+  await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,bezel_comp:document.getElementById('bezel').value==='1'})}); await loadState(); log('bezel handling changed'); }
 function nodeSelOptions(sel){
   let o=`<option value="">— unassigned —</option>`;
   o+=DISC.map(d=>`<option value="node:${d.id}" ${sel==='node:'+d.id?'selected':''}>${d.id} — ${d.ip}${d.online?'':' (offline)'}</option>`).join('');
@@ -908,24 +919,6 @@ function nodeSelOptions(sel){
   o+=`<option value="manual" ${sel==='manual'?'selected':''}>manual host/port…</option>`;
   return o;
 }
-function renderGridConfig(){
-  if(!S) return; const g=wallG(); let h='';   // TV placement is always editable (independent of slicing/lock)
-  for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
-    const key=`${r},${c}`, n=(g.nodes||{})[key]||{};
-    const sel = n.node ? ('node:'+n.node) : (n.host ? 'manual' : '');
-    h+=`<div class="gc" style="grid-template-columns:auto 1fr auto auto">
-      <span class="pill">${key}</span>
-      <select id="n-${key}" onchange="onNodeSel('${key}')">${nodeSelOptions(sel)}</select>
-      <button class="btn btn-secondary" style="padding:8px 12px" onclick="identify('${key}')">Identify</button>
-      <button class="btn btn-secondary" style="padding:8px 12px" title="Reboot this TV" onclick="rebootNode('${key}')">⟲</button>
-      <div id="m-${key}" style="grid-column:1/-1;display:${sel==='manual'?'flex':'none'};gap:8px">
-        <input type="text" id="h-${key}" value="${n.host||''}" placeholder="host/IP">
-        <input type="text" id="p-${key}" value="${n.port||''}" placeholder="port">
-      </div></div>`;
-  }
-  document.getElementById('gridConfig').innerHTML=h;
-}
-function onNodeSel(key){ document.getElementById('m-'+key).style.display=(document.getElementById('n-'+key).value==='manual')?'flex':'none'; }
 function renderDiscovered(){
   const el=document.getElementById('discList'); if(!el) return;
   el.innerHTML = DISC.length
@@ -936,18 +929,7 @@ async function loadDiscovered(){
   try{ DISC=(await (await fetch('/api/nodes/discovered')).json()).nodes||[]; }catch(e){ DISC=[]; }
   renderDiscovered();
   const wallVisible=document.querySelector('.tabpane[data-pane="wall"]').style.display!=='none';
-  if(wallVisible) renderGridConfig();
-}
-async function saveNodes(){
-  const g=wallG(), nodes={};
-  for(let r=0;r<g.rows;r++) for(let c=0;c<g.cols;c++){
-    const key=`${r},${c}`, v=document.getElementById('n-'+key).value;
-    if(v.startsWith('node:')) nodes[key]={node:v.slice(5)};
-    else if(v==='manual'){ const host=document.getElementById('h-'+key).value.trim(), port=parseInt(document.getElementById('p-'+key).value); if(host&&port) nodes[key]={host,port}; }
-  }
-  const r=await fetch('/api/nodes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes,target:gridTarget})});
-  if(r.status===409){ alert('This workspace grid is locked.'); return; }
-  log('saved TV placement ('+gridTarget+')'); await loadState(); await refresh();
+  if(wallVisible){ renderGrid(); renderCellEditor(); }
 }
 async function identify(key){ await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})}); log('identify '+key); }
 async function rebootNode(key){

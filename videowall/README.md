@@ -71,25 +71,14 @@ the editor is hidden and the cue list is locked for walking the show live.
 `1x1` options are a single landscape or single portrait display. Add layouts in
 `hub/geometry.py` (`LAYOUTS`).
 
-### Per-workspace walls
+### One wall grid
 
-There are two levels:
-
-- **System default grid** — set once on the **Wall** tab (the "System default"
-  toggle). This is the standard grid for the space (e.g. a `1x5` vertical wall):
-  layout, fit, bezel handling, TV placement. Always editable.
-- **Per-workspace override** — a workspace follows the system default unless it
-  sets its own. On the **Workspace** page, *Customize grid for this workspace*
-  (or the Wall tab's "This workspace" toggle) defines an override just for that
-  workspace — so one workspace can drive a single `1x1` display while another
-  uses the full `1x5`. *Use system default* drops the override again.
-
-A workspace's grid is **snapshotted and locked** the moment it gets its first
-cue (the cues are sliced for that grid), so later changes to the system default
-never break it — and that workspace's grid can't change after slicing. To
-re-grid an existing show, use **Save As…** (Workspace page) for an empty copy,
-set its grid, then build cues. (Panel physical dimensions live in the config and
-are shared.)
+There is a **single wall grid**, set on the **Wall** tab: layout, fit, bezel
+handling, and TV placement. It's a one-time setup for the physical space, and
+**every workspace uses it** — there is no per-workspace grid. On the Wall tab,
+**click a panel** to assign which TV sits in that cell (pick a discovered TV by
+name, or enter host/port), Identify it, or reboot it. (Cues are sliced for the
+current grid, so if you change the layout after building cues, rebuild them.)
 
 ## Authoring target (so you never do the math)
 
