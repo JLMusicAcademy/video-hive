@@ -16,7 +16,7 @@
 # Env (all optional):
 #   PORT          web UI / API port                 (default 5000)
 #   RUN_USER      user to run the hub as            (default: the sudo user / admin)
-#   HUB_HOSTNAME  set the Pi's hostname (e.g. videohive-hub) for <name>.local
+#   HUB_HOSTNAME  set the Pi's hostname (e.g. video-hive-hub) for <name>.local
 #   BRANCH        branch to run                     (default: claude/instant-fire)
 #   REPO          git URL                           (default: this project on GitHub)
 #   SRC           path to an existing clone to use  (skips cloning)

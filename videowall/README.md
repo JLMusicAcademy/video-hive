@@ -212,7 +212,7 @@ reboots the Pi if the whole system hangs.
 
 ```bash
 scp hub/install-hub.sh admin@<hub-pi>:~
-ssh admin@<hub-pi> 'sudo HUB_HOSTNAME=videohive-hub bash install-hub.sh'
+ssh admin@<hub-pi> 'sudo HUB_HOSTNAME=video-hive-hub bash install-hub.sh'
 ```
 
 The hub is a headless web/OSC server, so it needs **no desktop or autologin** —
