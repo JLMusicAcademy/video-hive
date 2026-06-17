@@ -200,6 +200,14 @@ chmod 440 /etc/sudoers.d/videowall-reboot
 # Keep the clock synced (NTP) so flips stay tight; the hub also offset-corrects.
 timedatectl set-ntp true 2>/dev/null || true
 
+# Security-only automatic updates (low risk). Full version upgrades stay manual
+# (use the hub's per-node 'Update packages' button, one TV at a time).
+apt-get install -y unattended-upgrades >/dev/null 2>&1 || true
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+
 # Advertise this node over mDNS so the hub can discover it with no hub address
 # configured here (avahi is already installed and running).
 install -d -m 755 /etc/avahi/services

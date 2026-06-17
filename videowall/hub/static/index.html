@@ -897,6 +897,7 @@ function renderCellEditor(){
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="identify('${key}')">Identify</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="rebootNode('${key}')">⟲ Reboot</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="updateNode('${key}')">⬆ Update packages</button>
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="updateNodeCode('${key}')">↻ Update code</button>
       <button class="btn btn-secondary" style="flex:0 0 auto" onclick="closeCell()">Close</button>
     </div>`;
 }
@@ -959,6 +960,13 @@ async function updateNode(key){
     log('update '+key+' '+(s.state||'?')+'\n'+(s.log||''));
   };
   setTimeout(poll,4000);
+}
+async function updateNodeCode(key){
+  if(!confirm('Push the hub’s current Video Hive code to TV '+key+' and restart it?')) return;
+  const password=prompt('Enter the node’s sudo password to authorize the code update for '+key+':'); if(!password) return;
+  const r=await (await fetch('/api/node/update_code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,password})})).json();
+  if(r.error){ log('code update '+key+' failed: '+r.error); alert('Code update failed: '+r.error); return; }
+  log('code update '+key+': pushed, node restarting…');
 }
 async function rebootAll(){
   if(!confirm('Reboot ALL mapped TVs now?')) return;

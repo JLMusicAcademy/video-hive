@@ -35,6 +35,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -402,6 +403,31 @@ def update_packages():
 def update_status():
     u = STATE["update"]
     return jsonify({"state": u["state"], "log": u["log"][-6000:]})
+
+
+@app.route("/update_code", methods=["POST"])
+def update_code():
+    """Replace this node's program with one pushed by the hub, then restart.
+    Password-gated (so it's not an open remote-code door); the hub sends its
+    own vetted node.py, so nodes need no Git/repo access of their own."""
+    pw = request.form.get("password", "")
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file"}), 400
+    chk = subprocess.run(["sudo", "-S", "-k", "true"],
+                         input=pw + "\n", capture_output=True, text=True)
+    if chk.returncode != 0:
+        return jsonify({"error": "sudo authentication failed"}), 403
+    tmp = "/tmp/videowall-node-new.py"
+    f.save(tmp)
+    run_path = os.path.abspath(sys.argv[0])     # the node.py we're running
+    r = subprocess.run(["sudo", "-S", "install", "-m", "755", tmp, run_path],
+                       input=pw + "\n", capture_output=True, text=True)
+    if r.returncode != 0:
+        return jsonify({"error": "install failed: " + r.stderr[:300]}), 500
+    print(f"[node {CFG['id']}] code updated -> restarting")
+    threading.Timer(1.0, lambda: os._exit(0)).start()   # respawn loop relaunches new code
+    return jsonify({"ok": True, "restarting": True})
 
 
 def main():

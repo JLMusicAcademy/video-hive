@@ -114,6 +114,13 @@ RuntimeWatchdogSec=15
 RebootWatchdogSec=2min
 EOF
 
+# Security-only automatic updates (low risk; full upgrades stay manual).
+apt-get install -y unattended-upgrades >/dev/null 2>&1 || true
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+
 # --------------------------------------------------------------------------- #
 # 6. Optional: name the hub so TVs (and you) can use <name>.local
 # --------------------------------------------------------------------------- #

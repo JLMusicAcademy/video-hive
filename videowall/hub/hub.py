@@ -781,6 +781,30 @@ def api_node_update_status():
         return jsonify({"error": str(e)}), 502
 
 
+NODE_PY_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "..", "node", "node.py")
+
+
+@app.route("/api/node/update_code", methods=["POST"])
+def api_node_update_code():
+    """Push the hub's own node.py to one node (password-gated) and restart it.
+    The node needs no Git/repo access -- the hub is the source of truth."""
+    data = request.json or {}
+    node = resolve_node(eff_nodes().get(data.get("key")))
+    if not node:
+        return jsonify({"error": "node not mapped or offline"}), 404
+    if not os.path.exists(NODE_PY_SRC):
+        return jsonify({"error": "node.py not found on the hub"}), 500
+    try:
+        with open(NODE_PY_SRC, "rb") as fh:
+            r = requests.post(node_url(node, "/update_code"),
+                              files={"file": ("node.py", fh)},
+                              data={"password": data.get("password", "")}, timeout=30)
+        return jsonify(r.json()), r.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
 # --------------------------------------------------------------------------- #
 # Routes: library + settings
 # --------------------------------------------------------------------------- #
