@@ -200,6 +200,24 @@ chmod 440 /etc/sudoers.d/videowall-reboot
 # Keep the clock synced (NTP) so flips stay tight; the hub also offset-corrects.
 timedatectl set-ntp true 2>/dev/null || true
 
+# Advertise this node over mDNS so the hub can discover it with no hub address
+# configured here (avahi is already installed and running).
+install -d -m 755 /etc/avahi/services
+cat > /etc/avahi/services/videohive-node.service <<EOF
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">Video Hive node %h</name>
+  <service>
+    <type>_videohive-node._tcp</type>
+    <port>$NODE_PORT</port>
+    <txt-record>id=$NODE_ID</txt-record>
+    <txt-record>rotation=$NODE_ROTATION</txt-record>
+  </service>
+</service-group>
+EOF
+systemctl restart avahi-daemon 2>/dev/null || true
+
 # --------------------------------------------------------------------------- #
 # 7. Optional: name the Pi after the node, so the hub can use <id>.local
 # --------------------------------------------------------------------------- #

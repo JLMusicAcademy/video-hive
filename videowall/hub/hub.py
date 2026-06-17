@@ -52,6 +52,14 @@ try:                                              # the QLab OSC bridge is optio
 except ImportError:
     HAVE_OSC = False
 
+try:                                              # mDNS node discovery is optional
+    from zeroconf import Zeroconf, ServiceBrowser
+    HAVE_ZEROCONF = True
+except ImportError:
+    HAVE_ZEROCONF = False
+
+MDNS_NODE_TYPE = "_videohive-node._tcp.local."
+
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
@@ -643,6 +651,12 @@ def api_nodes_status():
     return jsonify({k: {"online": ok, "detail": d} for k, (ok, d) in res.items()})
 
 
+def record_node(nid, ip, port, rotation=0, via="register"):
+    STATE["registry"][nid] = {"ip": ip, "port": int(port),
+                              "rotation": int(rotation), "last_seen": time.time(),
+                              "via": via}
+
+
 @app.route("/api/register", methods=["POST"])
 def api_register():
     """A display node announces itself here (id + port). We record the source
@@ -653,17 +667,61 @@ def api_register():
     if not nid:
         return jsonify({"error": "id required"}), 400
     ip = d.get("ip") or request.remote_addr
-    STATE["registry"][nid] = {"ip": ip, "port": int(d.get("port", 8001)),
-                              "rotation": int(d.get("rotation", 0)),
-                              "last_seen": time.time()}
+    record_node(nid, ip, d.get("port", 8001), d.get("rotation", 0), via="register")
     return jsonify({"ok": True, "id": nid, "ip": ip})
+
+
+# --------------------------------------------------------------------------- #
+# mDNS discovery: nodes advertise _videohive-node._tcp via avahi; the hub
+# browses for them. This finds nodes with no per-node hub address configured.
+# --------------------------------------------------------------------------- #
+class _NodeBrowserListener:
+    def add_service(self, zc, type_, name):
+        self._seen(zc, type_, name)
+
+    def update_service(self, zc, type_, name):
+        self._seen(zc, type_, name)
+
+    def remove_service(self, zc, type_, name):
+        pass
+
+    def _seen(self, zc, type_, name):
+        try:
+            info = zc.get_service_info(type_, name, timeout=2000)
+            if not info:
+                return
+            addrs = info.parsed_addresses() if hasattr(info, "parsed_addresses") else []
+            if not addrs:
+                return
+            props = info.properties or {}
+            nid = (props.get(b"id") or b"").decode() or name.split(".")[0]
+            rotation = int((props.get(b"rotation") or b"0").decode() or 0)
+            record_node(nid, addrs[0], info.port or 8001, rotation, via="mdns")
+            print(f"[mdns] discovered node {nid} at {addrs[0]}:{info.port}")
+        except Exception:
+            pass
+
+
+def start_mdns():
+    if not HAVE_ZEROCONF:
+        print("[mdns] zeroconf not installed -- node discovery via mDNS disabled")
+        return
+    try:
+        zc = Zeroconf()
+        ServiceBrowser(zc, MDNS_NODE_TYPE, _NodeBrowserListener())
+        STATE["_zeroconf"] = zc
+        print(f"[mdns] browsing for nodes ({MDNS_NODE_TYPE})")
+    except Exception as e:
+        print(f"[mdns] could not start: {e}")
 
 
 @app.route("/api/nodes/discovered")
 def api_nodes_discovered():
-    """Nodes that have announced themselves -- the pick-list for TV placement."""
+    """Nodes that announced themselves (push register or mDNS) -- the pick-list
+    for TV placement."""
     now = time.time()
     nodes = [{"id": k, "ip": v["ip"], "port": v["port"], "rotation": v["rotation"],
+              "via": v.get("via", "register"),
               "online": (now - v["last_seen"]) < NODE_ONLINE_SEC,
               "age": round(now - v["last_seen"], 1)}
              for k, v in sorted(STATE["registry"].items())]
@@ -1386,6 +1444,7 @@ def main():
     print(f"Open      : http://localhost:{args.port}")
     print("=" * 60)
     start_osc()
+    start_mdns()
     app.run(host=args.host, port=args.port)
 
 
