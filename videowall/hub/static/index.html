@@ -145,6 +145,7 @@
   <div class="navitem" data-nav="wall" onclick="tab('wall')">🧱 Wall</div>
   <div class="navitem" data-nav="library" onclick="tab('library')">🖼 Library</div>
   <div class="navitem" data-nav="qlab" onclick="tab('qlab')">🎚 QLab</div>
+  <div class="navitem" data-nav="activity" onclick="tab('activity')">🧾 Activity</div>
 </nav>
 
 <div class="topbar">
@@ -243,8 +244,6 @@
       </div>
       <div id="buildStatus" class="sub" style="margin-top:8px"></div>
     </div>
-
-    <div class="log" id="log">ready.</div>
   </div>
 
   <!-- WALL -->
@@ -347,6 +346,14 @@
     <label style="margin-top:18px">Control addresses</label>
     <div class="cuelist" id="qlabControl"></div>
   </div>
+
+  <!-- ACTIVITY -->
+  <div class="card tabpane" data-pane="activity" style="display:none">
+    <h2>Activity log</h2>
+    <div class="sub">Recent hub actions this session — handy during setup, ignorable during a show.</div>
+    <div class="btn-row" style="margin:10px 0"><button class="btn btn-secondary" style="flex:0 0 auto" onclick="document.getElementById('log').textContent='cleared.'">Clear</button></div>
+    <div class="log" id="log" style="max-height:65vh">ready.</div>
+  </div>
 </div>
 
 <script>
@@ -354,7 +361,7 @@ let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default', DIS
 let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
-const TITLES={workspace:'Workspace',wall:'Wall',library:'Library',qlab:'QLab'};
+const TITLES={workspace:'Workspace',wall:'Wall',library:'Library',qlab:'QLab',activity:'Activity'};
 function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
 function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
 function tab(name){
