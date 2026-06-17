@@ -202,6 +202,28 @@ Map each grid cell to a TV's host/port in the **Wall** tab's *TV placement* (or
 the config `nodes` block, `"row,col": {host, port}`). The **Identify** button
 flashes a cell's label on that TV so you can confirm placement.
 
+## Hub setup (Raspberry Pi)
+
+`hub/install-hub.sh` installs the hub on a Pi as a production service:
+**push it, run it.** It installs Python + ffmpeg, clones the repo, builds a
+venv, and runs the hub as a **systemd service** — so it starts on boot (comes
+back after a power outage), restarts if it crashes, and the hardware watchdog
+reboots the Pi if the whole system hangs.
+
+```bash
+scp hub/install-hub.sh admin@<hub-pi>:~
+ssh admin@<hub-pi> 'sudo HUB_HOSTNAME=videohive-hub bash install-hub.sh'
+```
+
+The hub is a headless web/OSC server, so it needs **no desktop or autologin** —
+the systemd service is more robust (it starts with no login at all). It works
+on either a Lite or Desktop image and won't change your boot target. Options:
+`PORT` (5000), `RUN_USER`, `HUB_HOSTNAME` (for `<name>.local`), `BRANCH`, `REPO`,
+`SRC` (use an existing clone). Manage with `systemctl status|restart
+videowall-hub` and `journalctl -u videowall-hub -f`; update with `git pull` in
+the clone + `systemctl restart` (your `store/` of workspaces survives). It
+prints the address to give nodes as `HUB=<host>.local:<port>`.
+
 ## Display node setup (Raspberry Pi)
 
 For real TVs, `node/install-node.sh` turns a fresh Pi into a permanent display
