@@ -216,12 +216,14 @@ flashes a cell's label on that TV so you can confirm placement.
 ## Display node setup (Raspberry Pi)
 
 For real TVs, `node/install-node.sh` turns a fresh Pi into a permanent display
-node in one step: **push it, run it, done.** It installs everything (mpv, a
-minimal X server, imagemagick, Flask), installs the node, and configures it to:
+node in one step: **push it, run it, done.** It installs everything (mpv,
+imagemagick, Flask), installs the node, and configures it to:
 
-- **boot into the node** when power is applied — no desktop, no login, no X server
-  (mpv renders straight to the screen via KMS/DRM as a systemd service, so boot is fast);
-- **restart on crash** (`Restart=always`);
+- **boot into the node** when power is applied — the Pi boots to the desktop,
+  auto-logs in, and autostarts the node *inside that session*, so mpv draws on
+  the session's display (the model that works reliably on a Pi — it doesn't fight
+  the compositor for the screen). Requires **Raspberry Pi OS with desktop**;
+- **restart on crash** (the launcher respawns the node);
 - **reboot the Pi if the whole system hangs** (hardware watchdog);
 - **come up ready** — pushed cues persist on disk, so after a reboot the node
   reloads its library and is immediately fireable.
@@ -240,10 +242,10 @@ from GitHub (`NODE_BRANCH`, `REPO_RAW`, or `NODE_SRC=/path` to override). On
 finish it prints the IP / `<id>.local` and port to enter in the hub's *TV
 placement*.
 
-Manage a node: `systemctl status|restart videowall-node`,
-`journalctl -u videowall-node -b -f`, and `/etc/videowall-node.conf` for
-id/port/rotation (edit, then restart). *Use Raspberry Pi OS (Lite is ideal); the
-script sets the Pi to boot to console so the kiosk owns the screen.*
+Manage a node: `journalctl -t videowall-node -f` for logs, `pkill -f node.py` to
+restart it (the launcher respawns it), and `/etc/videowall-node.conf` for
+id/port/rotation (edit, then reboot). A reboot is needed after install for the
+desktop autologin to take effect.
 
 ## Test on a single machine (no Pis, no display)
 

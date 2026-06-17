@@ -3,10 +3,12 @@
 # Video Hive -- display-node installer for Raspberry Pi.
 #
 # Turns a fresh Raspberry Pi into a video-wall display node that:
-#   * boots straight into the node when power is applied (no desktop, no login),
-#   * restarts the node automatically if it crashes (systemd Restart=always),
+#   * boots into the desktop, auto-logs in, and autostarts the node there
+#     (mpv draws on the desktop session's display -- the model that works on a Pi),
+#   * restarts the node automatically if it crashes (respawning launcher),
 #   * reboots the whole Pi if the kernel hangs (hardware watchdog),
-#   * comes up fast and ready -- pre-staged cues persist on disk across reboots.
+#   * comes up ready -- pre-staged cues persist on disk across reboots.
+#   Requires Raspberry Pi OS *with desktop*.
 #
 # Push it to a Pi and run it. That's the whole install:
 #
@@ -52,6 +54,7 @@ die() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 # Who the kiosk runs as (a normal user, not root -- X gets root rights via Xwrapper).
 RUN_USER="${RUN_USER:-${SUDO_USER:-admin}}"
 id "$RUN_USER" >/dev/null 2>&1 || die "user '$RUN_USER' does not exist (set RUN_USER=...)"
+USER_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
 
 NODE_ID="${NODE_ID:-$(hostname)}"
 case "$NODE_ROTATION" in 0|90|180|270) ;; *) die "NODE_ROTATION must be 0, 90, 180 or 270";; esac
@@ -60,9 +63,10 @@ say "Installing Video Hive node '$NODE_ID' (port $NODE_PORT, rotation $NODE_ROTA
 
 # --------------------------------------------------------------------------- #
 # 1. Packages
-#    mpv renders straight to the screen via KMS/DRM -- no X server, no desktop.
-#    imagemagick (black/identify images), python3-flask (the node's HTTP
-#    server), mesa DRI (GL for mpv's drm backend), avahi (<id>.local mDNS).
+#    The node runs inside the Pi's desktop session; mpv draws on its X display.
+#    mpv, imagemagick (black/identify images), python3-flask (HTTP server),
+#    x11-xserver-utils (xset, to stop blanking), mesa DRI (GL), avahi (mDNS).
+#    Requires Raspberry Pi OS *with desktop* (the desktop provides X/GL).
 # --------------------------------------------------------------------------- #
 say "Installing packages (this is the slow part)"
 export DEBIAN_FRONTEND=noninteractive
@@ -70,7 +74,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
     mpv imagemagick \
     python3 python3-flask \
-    libgl1-mesa-dri \
+    x11-xserver-utils libgl1-mesa-dri \
     avahi-daemon ca-certificates curl
 
 # --------------------------------------------------------------------------- #
@@ -106,8 +110,7 @@ grep -q 'add_argument("--gpu-context"' "$INSTALL_DIR/node.py" || die \
 # --------------------------------------------------------------------------- #
 say "Writing $CONF"
 cat > "$CONF" <<EOF
-# Video Hive display node -- per-Pi settings. Edit, then:
-#   sudo systemctl restart videowall-node
+# Video Hive display node -- per-Pi settings. Edit, then reboot (or: pkill -f node.py)
 NODE_ID=$NODE_ID
 NODE_PORT=$NODE_PORT
 NODE_ROTATION=$NODE_ROTATION
@@ -115,60 +118,57 @@ MEDIA_DIR=$MEDIA_DIR
 EOF
 
 # --------------------------------------------------------------------------- #
-# 4. Launcher -- runs the node with mpv on KMS/DRM (no X)
+# 4. Launcher -- runs the node inside the desktop session, mpv drawing on the
+#    session's X display (x11egl), auto-restarting. Output -> journal (tag
+#    'videowall-node'), so: journalctl -t videowall-node
 # --------------------------------------------------------------------------- #
 cat > "$INSTALL_DIR/start-node.sh" <<'EOF'
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 set -a; . /etc/videowall-node.conf; set +a
-# Stop the console blanking the screen behind mpv (write to the console, not
-# the journal, so its escape codes don't show up as "blob data" in the log).
-setterm --blank 0 --powerdown 0 >/dev/tty1 2>/dev/null || true
-exec python3 /opt/videowall/node.py \
-    --id "$NODE_ID" --port "$NODE_PORT" \
-    --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR" \
-    --gpu-context drm
+export DISPLAY="${DISPLAY:-:0}"
+# Keep the desktop from blanking / powering down the screen.
+xset s off -dpms s noblank 2>/dev/null || true
+while true; do
+    python3 /opt/videowall/node.py \
+        --id "$NODE_ID" --port "$NODE_PORT" \
+        --rotation "$NODE_ROTATION" --media-dir "$MEDIA_DIR" \
+        --gpu-context x11egl 2>&1 | systemd-cat -t videowall-node
+    sleep 2
+done
 EOF
 chmod 755 "$INSTALL_DIR/start-node.sh"
-
-# DRM/KMS + input device access for the kiosk user (no root, no X needed).
-usermod -aG tty,video,render,input "$RUN_USER" || true
+usermod -aG video,render,input "$RUN_USER" || true
 
 # --------------------------------------------------------------------------- #
-# 5. systemd service -- auto-start on boot, restart on crash
+# 5. Run on boot: desktop autologin + autostart the node in that session.
+#    mpv draws into the logged-in desktop's display -- the model that works on
+#    a Pi (it doesn't fight the compositor for the screen).
 # --------------------------------------------------------------------------- #
-say "Installing systemd service"
-cat > "$SERVICE" <<EOF
-[Unit]
-Description=Video Hive display node ($NODE_ID)
-After=systemd-user-sessions.service network-online.target getty@tty1.service
-Wants=network-online.target
-Conflicts=getty@tty1.service
-StartLimitIntervalSec=0
+say "Configuring desktop autologin + autostart"
 
-[Service]
-User=$RUN_USER
-# A login session on tty1 (seat0) so logind grants mpv the DRM master + input.
-PAMName=login
-WorkingDirectory=$INSTALL_DIR
-TTYPath=/dev/tty1
-StandardInput=tty
-StandardOutput=journal
-StandardError=journal
-TTYReset=yes
-TTYVHangup=yes
-ExecStart=$INSTALL_DIR/start-node.sh
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Boot to console (not the desktop) so our kiosk owns the screen and boots fast.
-systemctl set-default multi-user.target >/dev/null 2>&1 || true
+# Undo any earlier (broken) console/DRM kiosk this installer may have left.
+systemctl disable --now videowall-node.service >/dev/null 2>&1 || true
+rm -f "$SERVICE"
+sed -i '/videowall/d' "$USER_HOME/.profile" 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable videowall-node.service >/dev/null 2>&1 || true
+
+# Boot straight to the desktop, auto-logged-in as the kiosk user.
+systemctl set-default graphical.target >/dev/null 2>&1 || true
+raspi-config nonint do_boot_behaviour B4 >/dev/null 2>&1 \
+    || say "could not set desktop autologin via raspi-config -- set it manually (raspi-config > System > Boot > Desktop Autologin)"
+
+# XDG autostart entry: launch the node when the desktop session starts.
+AUTOSTART_DIR="$USER_HOME/.config/autostart"
+install -d -o "$RUN_USER" -g "$RUN_USER" -m 755 "$AUTOSTART_DIR"
+cat > "$AUTOSTART_DIR/videowall-node.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Video Hive Node
+Exec=$INSTALL_DIR/start-node.sh
+X-GNOME-Autostart-enabled=true
+EOF
+chown "$RUN_USER:$RUN_USER" "$AUTOSTART_DIR/videowall-node.desktop"
 
 # --------------------------------------------------------------------------- #
 # 6. Hardware watchdog -- reboot the Pi if the whole system hangs
@@ -196,31 +196,24 @@ if [ "$SET_HOSTNAME" = "1" ] && [ "$NODE_ID" != "$(hostname)" ]; then
 fi
 
 # --------------------------------------------------------------------------- #
-# 8. Start it now
+# 8. Done -- the node starts when the desktop session comes up (after reboot)
 # --------------------------------------------------------------------------- #
-say "Starting the node"
-systemctl restart videowall-node.service || true
-sleep 2
 IP="$(hostname -I | awk '{print $1}')"
-systemctl is-active --quiet videowall-node.service && STATUS="running" || STATUS="NOT running (check: journalctl -u videowall-node -b)"
-
 cat <<EOF
 
 ============================================================
- Video Hive node installed.
+ Video Hive node '$NODE_ID' installed.
 ============================================================
- Node id   : $NODE_ID
- Status    : $STATUS
+ Reboot to start it:   sudo reboot
+ After reboot the desktop auto-logs in, the node launches, and the
+ TV shows black (idle) -- ready to receive cues.
+
  Reach it  : http://$IP:$NODE_PORT/status
              http://$NODE_ID.local:$NODE_PORT/status   (mDNS)
- In the hub's TV placement, map this display's grid cell to:
-             host = $IP   (or $NODE_ID.local)   port = $NODE_PORT
+ Hub TV placement -> host $IP (or $NODE_ID.local), port $NODE_PORT
 
- Manage:   sudo systemctl status  videowall-node
-           sudo systemctl restart videowall-node
-           journalctl -u videowall-node -b -f
-           sudo nano $CONF   # change id/port/rotation, then restart
-
- A reboot is recommended to confirm clean auto-start:  sudo reboot
+ Logs    : journalctl -t videowall-node -f
+ Restart : pkill -f node.py            # the launcher respawns it
+ Config  : sudo nano $CONF             # id/port/rotation, then reboot
 ============================================================
 EOF
