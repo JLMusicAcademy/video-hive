@@ -36,7 +36,15 @@ def crop_filter(tile, src_w, src_h, canvas_w, canvas_h, fit):
     ch = vis_h * (tile.v1 - tile.v0)
     cx = off_x + vis_w * tile.u0
     cy = off_y + vis_h * tile.v0
-    return (f"crop={cw:.0f}:{ch:.0f}:{cx:.0f}:{cy:.0f},"
+    # libx264 + yuv420p require even crop width/height. A non-standard source
+    # size (e.g. 1928x1072) otherwise yields an odd crop and ffmpeg aborts the
+    # tile -- the cue then silently never gets built. Round dimensions down to
+    # even (and offsets down) so the crop always stays within the source.
+    cw_i = int(cw) & ~1
+    ch_i = int(ch) & ~1
+    cx_i = int(cx)
+    cy_i = int(cy)
+    return (f"crop={cw_i}:{ch_i}:{cx_i}:{cy_i},"
             f"scale={tile.res_w}:{tile.res_h}:flags=lanczos")
 
 
