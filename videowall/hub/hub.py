@@ -1284,6 +1284,8 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
         tiles, cw, ch, panel, layout = current_tiles()
         fit = effective_config().get("fit", "cover")
         job["total"] = len(tiles)
+        print(f"[build] tiling video '{name}' (cue {cue_id}): "
+              f"{len(tiles)} tile(s), canvas {cw}x{ch}, fit={fit}", flush=True)
         files = tiler.tile_video(src_path, adir, tiles, cw, ch, fit,
                                  progress=lambda d, t, k: job.update(done=d))
         assets = {f"{r},{c}": path.name for (r, c), path in files.items()}
@@ -1300,6 +1302,7 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
             STATE["workspace"] = ws
         job["state"] = "ready"
         job["cue_id"] = cue_id
+        print(f"[build] OK '{name}' (cue {cue_id}) -> {len(assets)} tile(s)", flush=True)
     except Exception as e:
         job["state"] = "error"
         msg = str(e)
@@ -1309,6 +1312,7 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
         if isinstance(e, FileNotFoundError):
             msg = "ffmpeg/ffprobe not found on the hub -- install ffmpeg to build video cues"
         job["error"] = msg
+        print(f"[build] FAILED '{name}' (cue {cue_id}): {msg}", flush=True)
 
 
 @app.route("/api/cue/build_video/status/<job_id>")
