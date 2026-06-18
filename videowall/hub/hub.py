@@ -839,11 +839,16 @@ class _NodeBrowserListener:
             addrs = info.parsed_addresses() if hasattr(info, "parsed_addresses") else []
             if not addrs:
                 return
+            # parsed_addresses() returns IPv4 and IPv6 in no guaranteed order; an
+            # IPv6 (esp. link-local fe80::) makes the hub's HTTP poll fail and the
+            # node look "offline". Always prefer a routable IPv4 for talking to nodes.
+            v4 = [a for a in addrs if ":" not in a]
+            addr = (v4 or addrs)[0]
             props = info.properties or {}
             nid = (props.get(b"id") or b"").decode() or name.split(".")[0]
             rotation = int((props.get(b"rotation") or b"0").decode() or 0)
-            record_node(nid, addrs[0], info.port or 8001, rotation, via="mdns")
-            print(f"[mdns] discovered node {nid} at {addrs[0]}:{info.port}")
+            record_node(nid, addr, info.port or 8001, rotation, via="mdns")
+            print(f"[mdns] discovered node {nid} at {addr}:{info.port}")
         except Exception:
             pass
 
