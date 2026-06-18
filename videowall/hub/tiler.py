@@ -41,7 +41,7 @@ def crop_filter(tile, src_w, src_h, canvas_w, canvas_h, fit):
 
 
 def tile_video(src_path, out_dir, tiles, canvas_w, canvas_h, fit="cover",
-               crf=20, preset="medium", progress=None):
+               crf=20, preset="veryfast", progress=None):
     """Produce one tile file per panel in `out_dir`.
 
     Returns {(row, col): Path}. `progress(done, total, key)` is called after
@@ -60,14 +60,20 @@ def tile_video(src_path, out_dir, tiles, canvas_w, canvas_h, fit="cover",
     for i, t in enumerate(tiles, 1):
         out_file = out_dir / f"r{t.row}c{t.col}.mp4"
         vf = crop_filter(t, src_w, src_h, canvas_w, canvas_h, fit)
-        subprocess.run([
+        proc = subprocess.run([
             "ffmpeg", "-y", "-i", str(src_path),
             "-vf", vf,
             "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
             "-pix_fmt", "yuv420p",
             "-an",                       # tiles are silent; route audio separately
             str(out_file),
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        if proc.returncode != 0:
+            # Surface ffmpeg's own error instead of swallowing it -- a swallowed
+            # failure looks like the cue silently "never showing up".
+            tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+            detail = " | ".join(tail[-3:]) if tail else f"exit {proc.returncode}"
+            raise RuntimeError(f"ffmpeg failed tiling r{t.row}c{t.col}: {detail}")
         results[(t.row, t.col)] = out_file
         if progress:
             progress(i, total, t.key)

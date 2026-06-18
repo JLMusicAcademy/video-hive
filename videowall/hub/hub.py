@@ -1303,7 +1303,10 @@ def _build_video_worker(job_id, ws_id, cue_id, name, src_path, adir):
     except Exception as e:
         job["state"] = "error"
         msg = str(e)
-        if isinstance(e, FileNotFoundError) or "ffprobe" in msg or "ffmpeg" in msg:
+        # FileNotFoundError means the ffmpeg/ffprobe binary itself is missing.
+        # An ffmpeg that ran but failed now reports its real error (see tiler),
+        # so don't mask that with the generic "not found" hint.
+        if isinstance(e, FileNotFoundError):
             msg = "ffmpeg/ffprobe not found on the hub -- install ffmpeg to build video cues"
         job["error"] = msg
 
