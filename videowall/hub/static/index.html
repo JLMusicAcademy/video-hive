@@ -5,145 +5,212 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Video Hive Hub</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-         background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 45%,#fdf2f8 100%); color:#1e293b; min-height:100vh; }
-  .topbar { position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:12px; padding:12px 18px;
-            background:rgba(255,255,255,0.82); backdrop-filter:blur(8px); border-bottom:1px solid #eef1f6; flex-wrap:wrap; }
-  h1 { font-size:19px; font-weight:700; letter-spacing:-0.4px; }
-  .sub { color:#64748b; font-size:13px; }
-  .grow { flex:1; }
-  .pill { display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:#eef2ff; color:#4338ca; margin-left:4px; font-weight:600; }
-  .hamburger { background:#fff; border:1px solid #e9edf3; border-radius:12px; width:44px; height:44px; font-size:18px; cursor:pointer;
-               box-shadow:0 2px 8px rgba(15,23,42,0.06); }
-  .content { max-width:1080px; margin:0 auto; padding:20px 18px 70px; }
+  :root{
+    --bg:#0b1220; --bg-2:#0f172a; --bg-3:#131f38;
+    --surface:#1a2436; --surface-2:#223049; --surface-3:#2a3a57;
+    --border:#2c3a52; --border-2:#3a4c6b;
+    --text:#f1f5f9; --text-dim:#9fb0c8; --text-faint:#7d8ba5;
+    --accent:#fbbf24; --accent-strong:#f59e0b;
+    --primary:#f59e0b; --primary-ink:#221603; --primary-hover:#fbbf24;
+    --go:#84cc16; --go-ink:#16230a; --go-hover:#a3e635;
+    --danger:#fb5a73; --danger-ink:#2a0810; --danger-hover:#f43f5e;
+    --ok:#4ade80; --warn:#fbbf24;
+    --r-sm:9px; --r:12px; --r-lg:16px; --r-xl:20px; --pill:999px;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px;
+    --shadow:0 10px 30px rgba(0,0,0,0.45); --shadow-sm:0 2px 8px rgba(0,0,0,0.35);
+    --ring:0 0 0 3px rgba(245,158,11,0.40);
+    --t-xs:12px; --t-sm:13px; --t-base:15px; --t-md:16px; --t-lg:18px; --t-xl:21px;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+        background:radial-gradient(1200px 800px at 80% -10%,#16233e 0%,transparent 60%),
+                   radial-gradient(1000px 700px at -10% 10%,#1a1530 0%,transparent 55%),
+                   var(--bg);
+        background-attachment:fixed; color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; font-size:var(--t-base); }
+  .topbar{ position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:var(--s3); padding:12px 18px;
+           background:rgba(15,23,42,0.78); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  h1{ font-size:var(--t-xl); font-weight:700; letter-spacing:-0.4px; color:var(--text); }
+  .sub{ color:var(--text-dim); font-size:var(--t-sm); }
+  .grow{ flex:1; }
+  .pill{ display:inline-block; font-size:var(--t-xs); padding:3px 10px; border-radius:var(--pill); background:rgba(245,158,11,0.16); color:var(--accent); margin-left:4px; font-weight:600; }
+  .hamburger{ background:var(--surface-2); border:1px solid var(--border-2); border-radius:var(--r); width:44px; height:44px; font-size:18px; cursor:pointer; color:var(--text);
+              box-shadow:var(--shadow-sm); }
+  .hamburger:hover{ background:var(--surface-3); }
+  .content{ max-width:1080px; margin:0 auto; padding:20px 18px 70px; }
 
-  .backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.35); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
-  .backdrop.open { opacity:1; pointer-events:auto; }
-  .sidebar { position:fixed; top:0; left:0; height:100%; width:264px; background:#fff; box-shadow:8px 0 30px rgba(15,23,42,0.14);
-             transform:translateX(-100%); transition:transform .22s ease; z-index:50; padding:18px; display:flex; flex-direction:column; gap:4px; }
-  .sidebar.open { transform:translateX(0); }
-  .sidebar .brand { font-size:18px; font-weight:700; padding:6px 10px 14px; }
-  .navitem { padding:13px 14px; border-radius:12px; cursor:pointer; font-weight:600; color:#334155; display:flex; gap:12px; align-items:center; font-size:15px; }
-  .navitem:hover { background:#f1f5f9; }
-  .navitem.active { background:#eef2ff; color:#4338ca; }
+  .backdrop{ position:fixed; inset:0; background:rgba(2,6,16,0.62); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
+  .backdrop.open{ opacity:1; pointer-events:auto; }
+  .sidebar{ position:fixed; top:0; left:0; height:100%; width:264px; background:var(--bg-2); border-right:1px solid var(--border); box-shadow:18px 0 40px rgba(0,0,0,0.5);
+            transform:translateX(-100%); transition:transform .22s ease; z-index:50; padding:18px; display:flex; flex-direction:column; gap:4px; }
+  .sidebar.open{ transform:translateX(0); }
+  .sidebar .brand{ font-size:var(--t-lg); font-weight:800; padding:6px 10px 14px; color:var(--accent); letter-spacing:-0.3px; }
+  .navitem{ padding:13px 14px; border-radius:var(--r); cursor:pointer; font-weight:600; color:var(--text-dim); display:flex; gap:12px; align-items:center; font-size:var(--t-base); }
+  .navitem:hover{ background:var(--surface); color:var(--text); }
+  .navitem:focus-visible{ outline:none; box-shadow:var(--ring); }
+  .navitem.active{ background:rgba(245,158,11,0.14); color:var(--accent); }
 
-  .card { background:#fff; border:1px solid #eef1f6; border-radius:18px; box-shadow:0 12px 34px rgba(15,23,42,0.07); padding:20px; }
-  .card h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
-  label { display:block; font-size:13px; color:#64748b; margin:12px 0 5px; font-weight:500; }
-  select,input[type=text],input[type=number],input[type=file] {
-    width:100%; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; color:#1e293b; font-size:14px; }
-  select:focus,input:focus { outline:none; border-color:#a5b4fc; box-shadow:0 0 0 4px rgba(165,180,252,0.25); }
-  .btn { padding:10px 15px; border:none; border-radius:13px; font-size:14px; font-weight:600; cursor:pointer; transition:transform .12s, background .15s; }
-  .btn:hover { transform:translateY(-1px); }
-  .btn-primary { background:#6366f1; color:#fff; box-shadow:0 8px 18px rgba(99,102,241,0.32); } .btn-primary:hover{background:#4f46e5;}
-  .btn-go { background:#22c55e; color:#fff; box-shadow:0 8px 18px rgba(34,197,94,0.32); } .btn-go:hover{background:#16a34a;}
-  .btn-secondary { background:#f1f5f9; color:#334155; box-shadow:0 3px 8px rgba(15,23,42,0.06); } .btn-secondary:hover{background:#e2e8f0;}
-  .btn-danger { background:#ef4444; color:#fff; box-shadow:0 8px 18px rgba(239,68,68,0.28); } .btn-danger:hover{background:#dc2626;}
-  .btn-row { display:flex; gap:10px; flex-wrap:wrap; } .btn-row .btn { flex:1; min-width:110px; }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow); padding:20px; }
+  .card h2{ font-size:var(--t-lg); font-weight:700; margin-bottom:6px; color:var(--text); }
+  label{ display:block; font-size:var(--t-sm); color:var(--text-dim); margin:12px 0 5px; font-weight:600; }
+  select,input[type=text],input[type=password],input[type=number],input[type=file]{
+    width:100%; padding:11px 12px; background:var(--bg-2); border:1px solid var(--border-2); border-radius:var(--r); color:var(--text); font-size:var(--t-md); }
+  select option{ background:var(--bg-2); color:var(--text); }
+  ::placeholder{ color:var(--text-faint); }
+  select:focus,input:focus{ outline:none; border-color:var(--accent-strong); box-shadow:var(--ring); }
+  .btn{ padding:10px 15px; border:none; border-radius:var(--r); font-size:var(--t-base); font-weight:700; cursor:pointer; transition:transform .12s, background .15s, filter .15s; }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn:focus-visible{ outline:none; box-shadow:var(--ring); }
+  .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none; filter:saturate(.6); }
+  .btn-primary{ background:var(--primary); color:var(--primary-ink); box-shadow:0 8px 20px rgba(245,158,11,0.28); } .btn-primary:hover{ background:var(--primary-hover); }
+  .btn-go{ background:var(--go); color:var(--go-ink); box-shadow:0 8px 20px rgba(132,204,22,0.28); } .btn-go:hover{ background:var(--go-hover); }
+  .btn-secondary{ background:var(--surface-2); color:var(--text); border:1px solid var(--border-2); box-shadow:none; } .btn-secondary:hover{ background:var(--surface-3); }
+  .btn-danger{ background:var(--danger); color:var(--danger-ink); box-shadow:0 8px 20px rgba(244,63,94,0.25); } .btn-danger:hover{ background:var(--danger-hover); }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; } .btn-row .btn{ flex:1; min-width:110px; }
 
   /* workspace bar */
-  .wsbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .wsbar select { width:auto; min-width:180px; font-weight:600; }
-  .modeswitch { display:inline-flex; background:#eef2f7; border-radius:999px; padding:3px; }
-  .modeswitch button { border:none; background:transparent; padding:7px 16px; border-radius:999px; font-weight:700; cursor:pointer; color:#64748b; font-size:13px; }
-  .modeswitch button.on { background:#fff; color:#4338ca; box-shadow:0 2px 6px rgba(15,23,42,0.1); }
+  .wsbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .wsbar select{ width:auto; min-width:180px; font-weight:600; }
+  .modeswitch{ display:inline-flex; background:var(--bg-2); border:1px solid var(--border); border-radius:var(--pill); padding:3px; }
+  .modeswitch button{ border:none; background:transparent; padding:7px 16px; border-radius:var(--pill); font-weight:700; cursor:pointer; color:var(--text-dim); font-size:var(--t-sm); }
+  .modeswitch button.on{ background:var(--surface-3); color:var(--accent); box-shadow:var(--shadow-sm); }
 
-  .gobar { display:flex; gap:14px; align-items:center; margin-top:16px; flex-wrap:wrap; }
-  .gobtn { width:96px; height:96px; border-radius:22px; border:none; background:#22c55e; color:#fff; font-size:26px; font-weight:800; cursor:pointer;
-           box-shadow:0 12px 26px rgba(34,197,94,0.4); transition:transform .1s; }
-  .gobtn:active { transform:scale(0.96); }
-  .gobtn:disabled { background:#cbd5e1; box-shadow:none; cursor:not-allowed; }
-  .standby { flex:1; min-width:200px; }
-  .standby .lbl { font-size:12px; color:#64748b; }
-  .standby .nm { font-size:20px; font-weight:700; }
+  .gobar{ display:flex; gap:14px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+  .gobtn{ width:96px; height:96px; border-radius:var(--r-xl); border:none; background:var(--go); color:var(--go-ink); font-size:26px; font-weight:800; cursor:pointer;
+          box-shadow:0 12px 30px rgba(132,204,22,0.42); transition:transform .1s, filter .15s; }
+  .gobtn:hover{ filter:brightness(1.05); }
+  .gobtn:active{ transform:scale(0.96); }
+  .gobtn:focus-visible{ outline:none; box-shadow:var(--ring); }
+  .gobtn:disabled{ background:var(--surface-3); color:var(--text-faint); box-shadow:none; cursor:not-allowed; }
+  .standby{ flex:1; min-width:200px; }
+  .standby .lbl{ font-size:var(--t-xs); color:var(--text-dim); letter-spacing:.04em; font-weight:700; }
+  .standby .nm{ font-size:var(--t-xl); font-weight:700; color:var(--text); }
 
-  .cuelist { margin-top:16px; border:1px solid #eef1f6; border-radius:14px; overflow:hidden; }
-  .cuehead, .cuerow { display:grid; grid-template-columns:26px 34px 1fr 96px 54px 76px 40px; gap:8px; align-items:center; padding:10px 12px; }
-  .cuehead { background:#f8fafc; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-  .cuerow { border-top:1px solid #f1f5f9; cursor:pointer; }
-  .cuerow:hover { background:#f8fafc; }
-  .cuerow.sel { background:#eef2ff; }
-  .cuerow.standby { box-shadow:inset 3px 0 0 #6366f1; }
-  .cuelist.dragover { outline:2px dashed #818cf8; outline-offset:3px; background:#f5f7ff; }
-  .cuerow.dragging { opacity:.45; }
-  .cuerow.drop-before { box-shadow:inset 0 4px 0 -1px #6366f1; }
-  .cuerow.drop-after { box-shadow:inset 0 -4px 0 -1px #6366f1; }
-  .cuerow[draggable=true] { cursor:grab; }
-  .lay.disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
-  .locknote { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; }
-  .wsdrop { border:2px dashed #c7d2fe; border-radius:14px; padding:18px; text-align:center; color:#64748b; margin-top:14px; font-size:14px; font-weight:600; }
-  .tabpane.filedrag { outline:3px dashed #6366f1; outline-offset:-6px; background:#f5f7ff; }
-  .tabpane.filedrag .wsdrop { border-color:#6366f1; color:#4338ca; background:#eef2ff; }
-  .cuerow .nm { font-weight:600; }
-  .cuerow .mt { font-size:12px; color:#64748b; }
-  .ptr { color:#6366f1; font-weight:800; }
-  .status { font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; text-align:center; }
-  .status.ready { background:#dcfce7; color:#15803d; } .status.draft { background:#fef3c7; color:#b45309; }
-  .rowbtns { display:flex; gap:6px; justify-content:flex-end; }
-  .iconbtn { border:none; background:#f1f5f9; border-radius:9px; width:30px; height:30px; cursor:pointer; font-size:13px; }
-  .iconbtn.fire { background:#dcfce7; } .iconbtn.del { background:#fee2e2; }
+  .cuelist{ margin-top:16px; border:1px solid var(--border); border-radius:var(--r); overflow:hidden; background:var(--bg-2); }
+  .cuehead, .cuerow{ display:grid; grid-template-columns:26px 34px 1fr 96px 54px 76px 40px; gap:8px; align-items:center; padding:10px 12px; }
+  .cuehead{ background:var(--surface); font-size:var(--t-xs); color:var(--text-dim); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .cuerow{ border-top:1px solid var(--border); cursor:pointer; }
+  .cuerow:hover{ background:var(--surface); }
+  .cuerow.sel{ background:rgba(245,158,11,0.10); }
+  .cuerow.standby{ box-shadow:inset 3px 0 0 var(--accent); }
+  .cuelist.dragover{ outline:2px dashed var(--accent); outline-offset:3px; background:rgba(245,158,11,0.06); }
+  .cuerow.dragging{ opacity:.45; }
+  .cuerow.drop-before{ box-shadow:inset 0 4px 0 -1px var(--accent); }
+  .cuerow.drop-after{ box-shadow:inset 0 -4px 0 -1px var(--accent); }
+  .cuerow[draggable=true]{ cursor:grab; }
+  .lay.disabled{ opacity:.45; cursor:not-allowed; box-shadow:none; }
+  .locknote{ background:rgba(245,158,11,0.10); border:1px solid var(--border-2); color:var(--accent); border-radius:var(--r); padding:11px 13px; margin-top:10px; font-size:var(--t-sm); }
+  .wsdrop{ border:2px dashed var(--border-2); border-radius:var(--r); padding:18px; text-align:center; color:var(--text-dim); margin-top:14px; font-size:var(--t-base); font-weight:600; }
+  .tabpane.filedrag{ outline:3px dashed var(--accent); outline-offset:-6px; background:rgba(245,158,11,0.06); }
+  .tabpane.filedrag .wsdrop{ border-color:var(--accent); color:var(--accent); background:rgba(245,158,11,0.12); }
+  .cuerow .nm{ font-weight:600; color:var(--text); }
+  .cuerow .mt{ font-size:var(--t-xs); color:var(--text-dim); }
+  .ptr{ color:var(--accent); font-weight:800; }
+  .status{ font-size:var(--t-xs); font-weight:700; padding:3px 9px; border-radius:var(--pill); text-align:center; }
+  .status.ready{ background:rgba(34,197,94,0.18); color:var(--ok); } .status.draft{ background:rgba(245,158,11,0.18); color:var(--warn); }
+  .rowbtns{ display:flex; gap:6px; justify-content:flex-end; }
+  .iconbtn{ border:none; background:var(--surface-2); color:var(--text); border-radius:var(--r-sm); width:34px; height:34px; cursor:pointer; font-size:var(--t-sm); }
+  .iconbtn:hover{ background:var(--surface-3); }
+  .iconbtn:focus-visible{ outline:none; box-shadow:var(--ring); }
+  .iconbtn.fire{ background:rgba(34,197,94,0.18); } .iconbtn.del{ background:rgba(244,63,94,0.18); }
 
-  .editor { margin-top:16px; border:1px dashed #c7d2fe; border-radius:16px; padding:18px; background:#fbfcff; }
-  .tvwrap { margin-top:12px; overflow-x:auto; background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:14px; }
-  .tvgrid { display:grid; gap:12px; min-width:min-content; }
-  .tv { display:flex; flex-direction:column; align-items:center; }
-  .tv-screen { width:100%; aspect-ratio:16/9; background:#000; border:5px solid #1e293b; border-radius:8px; overflow:hidden; display:flex;
-               align-items:center; justify-content:center; color:#475569; font-size:11px; box-shadow:0 6px 16px rgba(15,23,42,0.25); }
-  .tv.portrait .tv-screen { aspect-ratio:9/16; }
-  .tv-screen img { width:100%; height:100%; object-fit:fill; display:block; }
-  .tv-label { font-size:11px; color:#64748b; margin-top:5px; font-weight:600; }
-  .tv-stand { width:24%; height:6px; background:#cbd5e1; border-radius:0 0 4px 4px; }
+  .editor{ margin-top:16px; border:1px solid var(--border-2); border-radius:var(--r-lg); padding:18px; background:var(--bg-2); }
+  .tvwrap{ margin-top:12px; overflow-x:auto; background:var(--bg); border:1px solid var(--border); border-radius:var(--r); padding:14px; }
+  .tvgrid{ display:grid; gap:12px; min-width:min-content; }
+  .tv{ display:flex; flex-direction:column; align-items:center; }
+  .tv-screen{ width:100%; aspect-ratio:16/9; background:#000; border:5px solid #060a14; border-radius:8px; overflow:hidden; display:flex;
+              align-items:center; justify-content:center; color:var(--text-faint); font-size:var(--t-xs); box-shadow:0 6px 16px rgba(0,0,0,0.5); }
+  .tv.portrait .tv-screen{ aspect-ratio:9/16; }
+  .tv-screen img{ width:100%; height:100%; object-fit:fill; display:block; }
+  .tv-label{ font-size:var(--t-xs); color:var(--text-dim); margin-top:5px; font-weight:600; }
+  .tv-stand{ width:24%; height:6px; background:var(--border-2); border-radius:0 0 4px 4px; }
 
-  .grid { display:grid; gap:6px; margin-top:14px; background:#eef2f7; padding:6px; border-radius:14px; overflow-x:auto; }
-  .panel { background:#fff; border:1px solid #e2e8f0; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
-           font-size:12px; color:#64748b; position:relative; border-radius:8px; font-weight:600; min-width:64px; }
-  .panel.portrait { aspect-ratio:9/16; }
-  .panel.online { border-color:#22c55e; } .panel.offline { border-color:#f87171; }
-  .panel.selpanel { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.35); }
-  .dot { width:9px; height:9px; border-radius:50%; position:absolute; top:6px; right:6px; background:#cbd5e1; }
-  .dot.online { background:#22c55e; } .dot.offline { background:#f87171; }
-  .target { background:#f1f5ff; border:1px solid #e0e7ff; border-radius:12px; padding:11px 13px; margin-top:10px; font-size:13px; color:#3730a3; }
-  .target b { color:#4338ca; }
-  .layouts { display:flex; gap:8px; flex-wrap:wrap; }
-  .lay { padding:8px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600; box-shadow:0 2px 6px rgba(15,23,42,0.05); }
-  .lay.active { background:#6366f1; border-color:#6366f1; color:#fff; }
-  .gc { display:grid; grid-template-columns:auto 1fr 84px auto; gap:8px; align-items:center; margin-top:8px; }
-  .gc input { padding:8px; }
-  .item { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
-  .item.active { border-color:#a5b4fc; background:#f5f3ff; }
-  .libgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:14px; }
-  .libcell { background:#f8fafc; border:1px solid #e9eef5; border-radius:14px; padding:8px; text-align:center; }
-  .libcell img { width:100%; height:76px; object-fit:cover; border-radius:8px; background:#000; }
-  .libcell .ln { font-size:12px; margin-top:6px; color:#334155; font-weight:600; word-break:break-word; }
-  .dropzone { border:2px dashed #c7d2fe; border-radius:16px; padding:26px 16px; text-align:center; color:#64748b; background:#f8fafc; margin-top:8px; cursor:pointer; }
-  .dropzone.drag { border-color:#6366f1; background:#eef2ff; color:#4338ca; }
-  .link { color:#4f46e5; font-weight:700; text-decoration:underline; }
-  .log { font-family:ui-monospace,Menlo,monospace; font-size:12px; background:#f8fafc; border:1px solid #e9eef5; border-radius:12px; padding:12px; margin-top:14px; max-height:120px; overflow-y:auto; white-space:pre-wrap; color:#475569; }
+  .grid{ display:grid; gap:6px; margin-top:14px; background:var(--bg); padding:6px; border-radius:var(--r); overflow-x:auto; }
+  .panel{ background:var(--surface); border:1px solid var(--border-2); aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
+          font-size:var(--t-xs); color:var(--text-dim); position:relative; border-radius:8px; font-weight:600; min-width:64px; }
+  .panel.portrait{ aspect-ratio:9/16; }
+  .panel.online{ border-color:var(--go); } .panel.offline{ border-color:var(--danger); }
+  .panel.selpanel{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(245,158,11,0.40); }
+  .dot{ width:9px; height:9px; border-radius:50%; position:absolute; top:6px; right:6px; background:var(--border-2); }
+  .dot.online{ background:var(--go); } .dot.offline{ background:var(--danger); }
+  .target{ background:rgba(245,158,11,0.08); border:1px solid var(--border-2); border-radius:var(--r); padding:11px 13px; margin-top:10px; font-size:var(--t-sm); color:var(--text-dim); }
+  .target b{ color:var(--accent); }
+  .layouts{ display:flex; gap:8px; flex-wrap:wrap; }
+  .lay{ padding:8px 14px; background:var(--surface-2); border:1px solid var(--border-2); border-radius:var(--r); cursor:pointer; font-size:var(--t-sm); font-weight:600; color:var(--text); }
+  .lay:hover{ background:var(--surface-3); }
+  .lay.active{ background:var(--primary); border-color:var(--primary); color:var(--primary-ink); }
+  .gc{ display:grid; grid-template-columns:auto 1fr 84px auto; gap:8px; align-items:center; margin-top:8px; }
+  .gc input{ padding:8px; }
+  .item{ background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r); padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .item.active{ border-color:var(--accent); background:rgba(245,158,11,0.08); }
+  .libgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; margin-top:14px; }
+  .libcell{ background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r); padding:8px; text-align:center; }
+  .libcell img{ width:100%; height:76px; object-fit:cover; border-radius:8px; background:#000; }
+  .libcell .ln{ font-size:var(--t-xs); margin-top:6px; color:var(--text); font-weight:600; word-break:break-word; }
+  .dropzone{ border:2px dashed var(--border-2); border-radius:var(--r-lg); padding:26px 16px; text-align:center; color:var(--text-dim); background:var(--bg-2); margin-top:8px; cursor:pointer; }
+  .dropzone.drag{ border-color:var(--accent); background:rgba(245,158,11,0.10); color:var(--accent); }
+  .link{ color:var(--accent); font-weight:700; text-decoration:underline; }
+  .log{ font-family:var(--mono); font-size:var(--t-xs); background:var(--bg); border:1px solid var(--border); border-radius:var(--r); padding:12px; margin-top:14px; max-height:120px; overflow-y:auto; white-space:pre-wrap; color:var(--text-dim); }
 
-  .oscrow { display:flex; align-items:center; gap:10px; padding:9px 12px; border-top:1px solid #f1f5f9; }
-  .oscrow:first-child { border-top:none; }
-  .oscrow .nm { font-weight:600; min-width:120px; }
-  .oscrow .addr { font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#4338ca; background:#f5f7ff; border:1px solid #e0e7ff; border-radius:8px; padding:5px 8px; flex:1; overflow-x:auto; white-space:nowrap; }
-  .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
-  .badge.on { background:#dcfce7; color:#15803d; } .badge.off { background:#fee2e2; color:#b91c1c; }
+  .oscrow{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-top:1px solid var(--border); }
+  .oscrow:first-child{ border-top:none; }
+  .oscrow .nm{ font-weight:600; min-width:120px; color:var(--text); }
+  .oscrow .addr{ font-family:var(--mono); font-size:var(--t-xs); color:var(--accent); background:var(--bg); border:1px solid var(--border-2); border-radius:8px; padding:5px 8px; flex:1; overflow-x:auto; white-space:nowrap; }
+  .badge{ font-size:var(--t-xs); font-weight:700; padding:2px 8px; border-radius:var(--pill); }
+  .badge.on{ background:rgba(34,197,94,0.18); color:var(--ok); } .badge.off{ background:rgba(244,63,94,0.18); color:var(--danger); }
 
   @media (max-width:760px){
-    .content { padding:14px 12px 70px; }
-    .card { padding:15px; }
-    .cuehead, .cuerow { grid-template-columns:22px 28px 1fr 62px 34px; }
-    .col-type, .col-panels { display:none; }
-    .gc { grid-template-columns:auto 1fr; } .gc .btn{ grid-column:1/-1; }
-    .sidebar { width:84vw; max-width:300px; }
+    .content{ padding:14px 12px 70px; }
+    .card{ padding:15px; }
+    .cuehead, .cuerow{ grid-template-columns:22px 28px 1fr 62px 40px; }
+    .col-type, .col-panels{ display:none; }
+    .gc{ grid-template-columns:auto 1fr; } .gc .btn{ grid-column:1/-1; }
+    .sidebar{ width:84vw; max-width:300px; }
+    .topbar{ gap:8px; padding:10px 12px; }
+    .topbar h1{ font-size:var(--t-lg); }
   }
-  body.role-operator .admin-only { display:none !important; }
-  #loginOverlay { position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(3px);
-                  display:none; align-items:center; justify-content:center; z-index:200; }
-  #loginOverlay .card { width:330px; }
-  #loginOverlay input { margin-bottom:6px; }
+  body.role-operator .admin-only{ display:none !important; }
+  #loginOverlay{ position:fixed; inset:0; background:rgba(2,6,16,0.74); backdrop-filter:blur(5px);
+                 display:none; align-items:center; justify-content:center; z-index:200; padding:16px; }
+  #loginOverlay .card{ width:330px; max-width:100%; }
+  #loginOverlay input{ margin-bottom:6px; }
+
+  /* in-flight button spinner */
+  .btn.loading, .gobtn.loading{ position:relative; color:transparent !important; pointer-events:none; }
+  .btn.loading::after, .gobtn.loading::after{ content:""; position:absolute; top:50%; left:50%; width:16px; height:16px; margin:-8px 0 0 -8px;
+    border:2px solid var(--text); border-right-color:transparent; border-radius:50%; animation:spin .6s linear infinite; }
+  .gobtn.loading::after{ width:26px; height:26px; margin:-13px 0 0 -13px; border-width:3px; border-color:var(--go-ink); border-right-color:transparent; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* toast notifications */
+  #toasts{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:300; display:flex; flex-direction:column-reverse; gap:8px; align-items:center; width:max-content; max-width:92vw; }
+  .toast{ background:var(--surface-3); color:var(--text); border:1px solid var(--border-2); border-left:4px solid var(--accent);
+          border-radius:var(--r); padding:11px 16px; font-size:var(--t-sm); font-weight:600; box-shadow:var(--shadow); max-width:480px;
+          animation:toastin .2s ease; }
+  .toast.ok{ border-left-color:var(--go); } .toast.err{ border-left-color:var(--danger); } .toast.info{ border-left-color:var(--accent); }
+  @keyframes toastin{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+
+  /* modal dialogs (confirm / prompt / alert) */
+  #modalOverlay{ position:fixed; inset:0; background:rgba(2,6,16,0.74); backdrop-filter:blur(5px); display:none; align-items:center; justify-content:center; z-index:260; padding:16px; }
+  #modalOverlay.open{ display:flex; }
+  #modalOverlay .card{ width:420px; max-width:100%; }
+  #modalTitle{ margin-bottom:8px; }
+  #modalMsg{ color:var(--text-dim); font-size:var(--t-sm); white-space:pre-wrap; margin-bottom:6px; }
 </style>
 </head>
 <body>
+<div id="toasts" aria-live="polite" aria-atomic="false"></div>
+<div id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="card">
+    <h2 id="modalTitle"></h2>
+    <div id="modalMsg"></div>
+    <input id="modalInput" type="text" style="display:none">
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-secondary" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalOk">OK</button>
+    </div>
+  </div>
+</div>
 <div id="loginOverlay">
   <div class="card">
     <h2>🐝 Video Hive — sign in</h2>
@@ -152,7 +219,7 @@
     <label>Password</label>
     <input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     <div class="btn-row" style="margin-top:14px"><button class="btn btn-primary" onclick="doLogin()">Sign in</button></div>
-    <div class="sub" id="loginMsg" style="margin-top:8px;color:#ef4444;min-height:16px"></div>
+    <div class="sub" id="loginMsg" style="margin-top:8px;color:var(--danger);min-height:16px"></div>
   </div>
 </div>
 <button class="backdrop" id="backdrop" onclick="closeDrawer()"></button>
@@ -166,14 +233,14 @@
 </nav>
 
 <div class="topbar">
-  <button class="hamburger" onclick="openDrawer()">☰</button>
+  <button class="hamburger" aria-label="Open navigation menu" onclick="openDrawer()">☰</button>
   <h1 id="paneTitle">Workspace</h1>
   <div class="grow"></div>
   <span class="sub" id="hLayout"></span>
   <span class="sub" id="whoami"></span>
-  <button class="btn btn-secondary" style="padding:8px 10px" title="Change my password" onclick="changePw()">🔑</button>
+  <button class="btn btn-secondary" style="padding:8px 10px" title="Change my password" aria-label="Change my password" onclick="changePw()">🔑</button>
   <button class="btn btn-secondary" style="padding:8px 10px" onclick="doLogout()">Logout</button>
-  <button class="btn btn-secondary" style="padding:8px 12px" onclick="refresh()">⟳</button>
+  <button class="btn btn-secondary" style="padding:8px 12px" title="Refresh" aria-label="Refresh status" onclick="refresh()">⟳</button>
 </div>
 
 <div class="content">
@@ -204,7 +271,7 @@
         <div class="sub" id="standbyHint"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <button class="btn btn-primary" onclick="pushAll()">⤓ Push all to displays</button>
+        <button class="btn btn-primary" id="pushAllBtn" onclick="pushAll()">⤓ Push all to displays</button>
         <div class="btn-row">
           <button class="btn btn-secondary" onclick="control('black')">⬛ Black</button>
           <button class="btn btn-secondary" onclick="control('clear')">✕ Clear</button>
@@ -381,6 +448,55 @@ let S=null, nodeStatus={}, LIB={}, LIBDEFAULT='black', gridTarget='default', DIS
 let WS={cues:[]}, selectedCue=null, standbyId=null, editMode=true, dragCueId=null;
 
 function log(m){ const e=document.getElementById('log'); if(e) e.textContent=(new Date().toLocaleTimeString()+'  '+m+'\n'+e.textContent).slice(0,4000); }
+
+// Escape user-supplied text before it goes into innerHTML.
+const _ESC={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>_ESC[c]); }
+
+// Toast notifications (replace the old hidden-in-Activity feedback).
+function toast(msg,kind){
+  let w=document.getElementById('toasts');
+  if(!w){ w=document.createElement('div'); w.id='toasts'; document.body.appendChild(w); }
+  const t=document.createElement('div'); t.className='toast '+(kind||'info'); t.textContent=msg; w.appendChild(t);
+  setTimeout(()=>{ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),320); }, kind==='err'?4400:2600);
+}
+
+// Styled modal dialogs replacing native alert()/confirm()/prompt().
+function uiModal(o){
+  return new Promise(res=>{
+    const ov=document.getElementById('modalOverlay');
+    document.getElementById('modalTitle').textContent=o.title||'';
+    document.getElementById('modalMsg').textContent=o.message||'';
+    const field=document.getElementById('modalInput');
+    field.style.display=o.input?'block':'none';
+    field.type=o.password?'password':'text';
+    field.value=o.value||'';
+    const ok=document.getElementById('modalOk'), cancel=document.getElementById('modalCancel');
+    ok.textContent=o.okText||'OK'; ok.className='btn '+(o.danger?'btn-danger':'btn-primary');
+    cancel.style.display=o.hideCancel?'none':'inline-block';
+    ov.classList.add('open');
+    setTimeout(()=>(o.input?field:ok).focus(),30);
+    const done=val=>{ ov.classList.remove('open'); ok.onclick=cancel.onclick=field.onkeydown=ov.onclick=null; res(val); };
+    ok.onclick=()=>done(o.input?field.value:true);
+    cancel.onclick=()=>done(o.input?null:false);
+    ov.onclick=e=>{ if(e.target===ov && !o.input) done(o.input?null:false); };
+    field.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); done(field.value); } else if(e.key==='Escape'){ done(null); } };
+  });
+}
+const uiConfirm=(message,o={})=>uiModal({title:o.title||'Please confirm',message,okText:o.okText||'Confirm',danger:o.danger!==false});
+const uiPrompt =(message,o={})=>uiModal({title:o.title||'Enter a value',message,input:true,password:o.password,value:o.value,okText:o.okText||'OK'});
+const uiAlert  =(message,o={})=>uiModal({title:o.title||'Notice',message,okText:'OK',hideCancel:true});
+
+// Prevent double-firing of in-flight actions; shows a spinner on the button.
+const _busy=new Set();
+async function once(key,btnId,fn){
+  if(_busy.has(key)) return;
+  _busy.add(key);
+  const b=btnId&&document.getElementById(btnId);
+  if(b){ b.classList.add('loading'); b.disabled=true; }
+  try{ return await fn(); }
+  finally{ _busy.delete(key); if(b){ b.classList.remove('loading'); b.disabled=false; } }
+}
 const TITLES={workspace:'Workspace',wall:'Wall',library:'Library',qlab:'QLab',activity:'Activity'};
 function openDrawer(){ document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('open'); }
 function closeDrawer(){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
@@ -430,7 +546,7 @@ async function refresh(){
 async function loadWorkspaceSelector(){
   const d=await (await fetch('/api/workspaces')).json();
   document.getElementById('wsSel').innerHTML=d.workspaces.map(w=>
-    `<option value="${w.id}" ${w.id===d.active?'selected':''}>${w.name} (${w.cues})</option>`).join('');
+    `<option value="${w.id}" ${w.id===d.active?'selected':''}>${esc(w.name)} (${w.cues})</option>`).join('');
 }
 async function loadWorkspace(){
   await loadWorkspaceSelector(); await loadActiveLib();
@@ -446,11 +562,11 @@ function renderCues(){
          draggable="${editMode}" ondragstart="cueDragStart(event,'${c.id}')" onclick="clickCue('${c.id}')">
       <div class="ptr">${editMode?'⠿ ':''}${c.id===standbyId?'▶':''}</div>
       <div>${i+1}</div>
-      <div><div class="nm">${c.name}</div><div class="mt col-type">${c.type} · ${c.mode}</div></div>
-      <div class="col-type">${c.type}/${c.mode}</div>
+      <div><div class="nm">${esc(c.name)}</div><div class="mt col-type">${esc(c.type)} · ${esc(c.mode)}</div></div>
+      <div class="col-type">${esc(c.type)}/${esc(c.mode)}</div>
       <div class="col-panels">${c.panels.length}</div>
       <div><span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span></div>
-      <div class="rowbtns">${editMode?`<button class="iconbtn del admin-only" title="Delete cue" onclick="event.stopPropagation();deleteCueRow('${c.id}')">✕</button>`:''}</div>
+      <div class="rowbtns">${editMode?`<button class="iconbtn del admin-only" title="Delete cue" aria-label="Delete cue ${esc(c.name)}" onclick="event.stopPropagation();deleteCueRow('${c.id}')">✕</button>`:''}</div>
     </div>`).join('');
 }
 function renderStandby(){
@@ -477,30 +593,43 @@ function setMode(m){
 async function go(){
   const c=WS.cues.find(x=>x.id===standbyId);
   if(!c){ return; }
-  if(!c.pushed){ alert('“'+c.name+'” is a draft — push it to the displays first.'); return; }
-  await fireCue(c.id);
-  // advance standby
-  const i=WS.cues.findIndex(x=>x.id===standbyId);
-  standbyId = WS.cues[i+1]?.id || WS.cues[i]?.id;
-  if(editMode && i+1<WS.cues.length){ selectedCue=standbyId; openEditor(standbyId); }
-  renderCues(); renderStandby();
+  if(!c.pushed){ toast('“'+c.name+'” is a draft — push it to the displays first.','err'); return; }
+  if(_busy.has('go')) return;                 // ignore repeat presses while a cue is firing
+  _busy.add('go');
+  const b=document.getElementById('goBtn'); b.classList.add('loading'); b.disabled=true;
+  try{
+    await fireCue(c.id);
+    // advance standby
+    const i=WS.cues.findIndex(x=>x.id===standbyId);
+    standbyId = WS.cues[i+1]?.id || WS.cues[i]?.id;
+    if(editMode && i+1<WS.cues.length){ selectedCue=standbyId; openEditor(standbyId); }
+    renderCues();
+  } finally {
+    _busy.delete('go'); b.classList.remove('loading'); renderStandby();   // renderStandby restores the disabled state
+  }
 }
 async function fireCue(id){
   const r=await fetch('/api/cue/fire',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:id})});
-  if(r.status===409){ const c=WS.cues.find(x=>x.id===id); log('cannot fire '+id+': not pushed'); alert('“'+(c?c.name:id)+'” must be pushed first.'); return; }
+  if(r.status===409){ const c=WS.cues.find(x=>x.id===id); log('cannot fire '+id+': not pushed'); toast('“'+(c?c.name:id)+'” must be pushed first.','err'); return; }
   const d=await r.json(); log('FIRE '+id+' @ '+(d.show_at?new Date(d.show_at*1000).toLocaleTimeString():'?'));
 }
 async function pushCue(){
   if(!selectedCue) return;
-  log('pushing '+selectedCue+'…');
-  const r=await (await fetch('/api/cue/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})})).json();
-  log('push '+selectedCue+': '+(r.ok?'ready':'FAILED')); await loadWorkspace(); if(editMode&&selectedCue) openEditor(selectedCue);
+  await once('push','pushCueBtn',async()=>{
+    log('pushing '+selectedCue+'…');
+    const r=await (await fetch('/api/cue/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})})).json();
+    log('push '+selectedCue+': '+(r.ok?'ready':'FAILED'));
+    toast(r.ok?('“'+selectedCue+'” pushed — ready to fire'):('Push failed: '+selectedCue), r.ok?'ok':'err');
+    await loadWorkspace(); if(editMode&&selectedCue) openEditor(selectedCue);
+  });
 }
 async function pushAll(){
-  log('pushing whole workspace…');
-  const r=await (await fetch('/api/workspace/push',{method:'POST'})).json();
-  const n=Object.values(r.pushed||{}).filter(Boolean).length;
-  log('pushed '+n+' cue(s) ready'); await loadWorkspace();
+  await once('pushAll','pushAllBtn',async()=>{
+    log('pushing whole workspace…');
+    const r=await (await fetch('/api/workspace/push',{method:'POST'})).json();
+    const n=Object.values(r.pushed||{}).filter(Boolean).length;
+    log('pushed '+n+' cue(s) ready'); toast(n+' cue(s) pushed and ready','ok'); await loadWorkspace();
+  });
 }
 async function testFire(){ if(selectedCue) fireCue(selectedCue); }
 
@@ -511,19 +640,19 @@ async function switchWorkspace(id){
   await loadState(); await loadWorkspace(); log('opened workspace '+id);
 }
 async function newWorkspace(){
-  const name=prompt('New workspace name:'); if(!name) return;
+  const name=await uiPrompt('New workspace name:',{title:'New workspace',okText:'Create'}); if(!name) return;
   await fetch('/api/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   selectedCue=null; standbyId=null; await loadState(); await loadWorkspace(); log('created workspace '+name);
 }
 async function saveAsWorkspace(){
-  const name=prompt('Save a copy as (settings only, no cues):', S.active_workspace.name+' copy'); if(!name) return;
+  const name=await uiPrompt('Save a copy as (settings only, no cues):',{title:'Save workspace as',value:S.active_workspace.name+' copy',okText:'Save copy'}); if(!name) return;
   await fetch('/api/workspace/save_as',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
   selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
   await loadState(); await loadWorkspace(); log('saved copy: '+name);
 }
 async function deleteWorkspace(){
   const id=S.active_workspace.id, name=S.active_workspace.name;
-  if(!confirm('Delete workspace “'+name+'”?\nThis removes its cues and wipes their slices off the TVs.')) return;
+  if(!await uiConfirm('Delete workspace “'+name+'”?\nThis removes its cues and wipes their slices off the TVs.',{okText:'Delete'})) return;
   const r=await (await fetch('/api/workspace/'+encodeURIComponent(id),{method:'DELETE'})).json();
   selectedCue=null; standbyId=null; document.getElementById('cueEditor').style.display='none';
   await loadState(); await loadWorkspace(); log('deleted workspace '+name+' (forgot '+(r.forgot||0)+' cue(s) on TVs)');
@@ -584,7 +713,7 @@ async function reorderCue(id,beforeId){
 const isImageFile=f=>f.type.startsWith('image')||/\.(png|jpe?g|gif|bmp|webp|tiff?)$/i.test(f.name);
 const isVideoFile=f=>f.type.startsWith('video')||/\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(f.name);
 async function createCuesFromFiles(files){
-  if(!editMode){ alert('Switch to Edit mode to add cues.'); return; }
+  if(!editMode){ toast('Switch to Edit mode to add cues.','err'); return; }
   let n=0;
   for(const f of files){
     const name=f.name.replace(/\.[^.]+$/,'');
@@ -626,7 +755,7 @@ function newCue(){
 async function renameCue(){
   if(!selectedCue) return;
   const name=document.getElementById('cueName').value.trim();
-  if(!name){ alert('Enter a name'); return; }
+  if(!name){ toast('Enter a name','err'); return; }
   await fetch('/api/cue/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue,name})});
   document.getElementById('editorTitle').textContent='Cue · '+name;
   log('renamed → '+name); await loadWorkspace();
@@ -671,13 +800,13 @@ function onModeChange(){
 }
 function onComposeFiles(){
   composeImages=Array.from(document.getElementById('composeFiles').files);
-  document.getElementById('composeTray').innerHTML=composeImages.map((f,i)=>`<span class="pill">Upload ${i+1}: ${f.name}</span>`).join(' ');
+  document.getElementById('composeTray').innerHTML=composeImages.map((f,i)=>`<span class="pill">Upload ${i+1}: ${esc(f.name)}</span>`).join(' ');
   renderComposeGrid(); updatePreview();
 }
 function sourceOptions(){
-  let o=`<option value="default">Default (${(LIB[LIBDEFAULT]||{}).name||'Black'})</option>`;
-  o+=Object.entries(LIB).map(([id,m])=>`<option value="lib:${id}">Lib: ${m.name}</option>`).join('');
-  o+=composeImages.map((f,i)=>`<option value="u:${i}">Upload ${i+1}: ${f.name}</option>`).join('');
+  let o=`<option value="default">Default (${esc((LIB[LIBDEFAULT]||{}).name||'Black')})</option>`;
+  o+=Object.entries(LIB).map(([id,m])=>`<option value="lib:${id}">Lib: ${esc(m.name)}</option>`).join('');
+  o+=composeImages.map((f,i)=>`<option value="u:${i}">Upload ${i+1}: ${esc(f.name)}</option>`).join('');
   return o;
 }
 function renderComposeGrid(){
@@ -727,26 +856,34 @@ async function updatePreview(){
 }
 async function buildCue(){
   const mode=document.getElementById('buildMode').value, name=document.getElementById('cueName').value.trim();
-  if(!name){ alert('Give the cue a name'); return; }
+  if(!name){ toast('Give the cue a name','err'); return; }
+  if(mode!=='compose' && !document.getElementById('buildFile').files[0]){ toast('Choose a master file','err'); return; }
+  if(_busy.has('build')) return;
+  _busy.add('build');
+  const bb=document.getElementById('buildBtn'); if(bb){ bb.classList.add('loading'); bb.disabled=true; }
   document.getElementById('buildStatus').textContent='building…';
   let cueId=null;
-  if(mode==='compose'){
-    const fd=composeForm(); if(selectedCue) fd.append('existing_id',selectedCue);
-    const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:fd})).json(); cueId=r.cue_id;
-  } else {
-    const f=document.getElementById('buildFile').files[0];
-    if(!f){ alert('Choose a master file'); return; }
-    const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode',mode);
-    if(selectedCue) fd.append('existing_id',selectedCue);
-    if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
-    if(f.type.startsWith('video')){
-      const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); cueId=r.cue_id;
+  try{
+    if(mode==='compose'){
+      const fd=composeForm(); if(selectedCue) fd.append('existing_id',selectedCue);
+      const r=await (await fetch('/api/cue/build_compose',{method:'POST',body:fd})).json(); cueId=r.cue_id;
     } else {
-      const r=await (await fetch('/api/cue/build',{method:'POST',body:fd})).json(); cueId=r.cue_id;
+      const f=document.getElementById('buildFile').files[0];
+      const fd=new FormData(); fd.append('file',f); fd.append('name',name); fd.append('cue_id',name); fd.append('mode',mode);
+      if(selectedCue) fd.append('existing_id',selectedCue);
+      if(mode==='solo') fd.append('target',document.getElementById('soloTarget').value);
+      if(f.type.startsWith('video')){
+        const r=await (await fetch('/api/cue/build_video',{method:'POST',body:fd})).json(); await pollBuild(r.job_id); cueId=r.cue_id;
+      } else {
+        const r=await (await fetch('/api/cue/build',{method:'POST',body:fd})).json(); cueId=r.cue_id;
+      }
     }
+    document.getElementById('buildStatus').textContent='built (draft — push to displays when ready)';
+    log('built cue '+cueId); toast('Built “'+(cueId||name)+'” — draft','ok');
+    await loadWorkspace(); selectedCue=cueId; standbyId=standbyId||cueId; openEditor(cueId); renderCues(); renderStandby();
+  } finally {
+    _busy.delete('build'); if(bb){ bb.classList.remove('loading'); bb.disabled=false; }
   }
-  document.getElementById('buildStatus').textContent='built (draft — push to displays when ready)';
-  log('built cue '+cueId); await loadWorkspace(); selectedCue=cueId; standbyId=standbyId||cueId; openEditor(cueId); renderCues(); renderStandby();
 }
 async function pollBuild(job){
   return new Promise(res=>{
@@ -758,12 +895,12 @@ async function pollBuild(job){
   });
 }
 async function deleteCue(){
-  if(!selectedCue||!confirm('Delete cue '+selectedCue+'?')) return;
+  if(!selectedCue || !await uiConfirm('Delete cue “'+selectedCue+'”?',{okText:'Delete'})) return;
   await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:selectedCue})});
   log('deleted '+selectedCue); selectedCue=null; document.getElementById('cueEditor').style.display='none'; await loadWorkspace();
 }
 async function deleteCueRow(id){
-  if(!confirm('Delete cue “'+id+'”?')) return;
+  if(!await uiConfirm('Delete cue “'+id+'”?',{okText:'Delete'})) return;
   await fetch('/api/cue/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cue_id:id})});
   if(selectedCue===id){ selectedCue=null; document.getElementById('cueEditor').style.display='none'; }
   if(standbyId===id) standbyId=null;
@@ -776,15 +913,15 @@ async function loadActiveLib(){
   const d=await (await fetch('/api/library?workspace='+encodeURIComponent(S.active_workspace.id))).json();
   LIB=d.images; LIBDEFAULT=d.default;
   const sel=document.getElementById('defaultImg');
-  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${m.name}</option>`).join('');
+  if(sel) sel.innerHTML=Object.entries(LIB).map(([id,m])=>`<option value="${id}" ${id===LIBDEFAULT?'selected':''}>${esc(m.name)}</option>`).join('');
 }
 async function loadLibraryTab(){
   const wss=await (await fetch('/api/workspaces')).json();
   const sel=document.getElementById('libWsSel'); const cur=sel.value||wss.active;
-  sel.innerHTML=wss.workspaces.map(w=>`<option value="${w.id}" ${w.id===cur?'selected':''}>${w.name}</option>`).join('');
+  sel.innerHTML=wss.workspaces.map(w=>`<option value="${w.id}" ${w.id===cur?'selected':''}>${esc(w.name)}</option>`).join('');
   const d=await (await fetch('/api/library?workspace='+encodeURIComponent(sel.value))).json();
   document.getElementById('libGrid').innerHTML=Object.entries(d.images).map(([id,m])=>`
-    <div class="libcell"><img src="/api/library/${id}/thumb"><div class="ln">${m.name}${m.builtin?' ·global':''}</div>
+    <div class="libcell"><img src="/api/library/${id}/thumb" alt="${esc(m.name)}"><div class="ln">${esc(m.name)}${m.builtin?' ·global':''}</div>
       ${m.builtin?'<div class="sub">built-in</div>':`<button class="btn btn-danger admin-only" style="margin-top:8px;padding:5px 10px;font-size:11px" onclick="delLibrary('${id}')">Delete</button>`}
     </div>`).join('');
 }
@@ -797,9 +934,9 @@ async function uploadLibFiles(files){
   document.getElementById('libFile').value=''; log(n+' image(s) added'); loadLibraryTab(); loadActiveLib();
 }
 async function delLibrary(id){
-  if(!confirm('Delete library image '+id+'?')) return;
+  if(!await uiConfirm('Delete library image “'+id+'”?',{okText:'Delete'})) return;
   const r=await (await fetch('/api/library/'+id,{method:'DELETE'})).json();
-  if(r.error) alert(r.error); else { log('deleted '+id); loadLibraryTab(); }
+  if(r.error) toast(r.error,'err'); else { log('deleted '+id); toast('Deleted “'+id+'”','ok'); loadLibraryTab(); }
 }
 async function setDefaultImage(){
   const v=document.getElementById('defaultImg').value;
@@ -837,15 +974,15 @@ async function loadQlab(){
 
   document.getElementById('qlabCues').innerHTML = QLAB.cues.length
     ? QLAB.cues.map(c=>`<div class="oscrow">
-        <span class="nm">${c.name}</span>
+        <span class="nm">${esc(c.name)}</span>
         <span class="status ${c.pushed?'ready':'draft'}">${c.pushed?'Ready':'Draft'}</span>
-        <code class="addr">${c.address}</code>
-        <button class="iconbtn" title="Copy address" onclick="copyText('${c.address}')">⧉</button></div>`).join('')
+        <code class="addr">${esc(c.address)}</code>
+        <button class="iconbtn" title="Copy address" aria-label="Copy OSC address" data-copy="${esc(c.address)}" onclick="copyText(this.dataset.copy)">⧉</button></div>`).join('')
     : '<div class="oscrow"><span class="sub">No cues in this workspace yet.</span></div>';
 
   document.getElementById('qlabControl').innerHTML = Object.entries(QLAB.control).map(([k,a])=>
-    `<div class="oscrow"><span class="nm">${k}</span><code class="addr">${a}</code>
-      <button class="iconbtn" title="Copy address" onclick="copyText('${a}')">⧉</button></div>`).join('');
+    `<div class="oscrow"><span class="nm">${esc(k)}</span><code class="addr">${esc(a)}</code>
+      <button class="iconbtn" title="Copy address" aria-label="Copy OSC address" data-copy="${esc(a)}" onclick="copyText(this.dataset.copy)">⧉</button></div>`).join('');
 }
 async function toggleOsc(){
   if(!QLAB) return;
@@ -858,13 +995,13 @@ async function saveOsc(){
 }
 async function postOsc(body){
   const r=await (await fetch('/api/qlab/osc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(r.error){ alert(r.error); return; }
+  if(r.error){ toast(r.error,'err'); return; }
   log('OSC bridge: '+(r.osc.enabled?('on udp/'+r.osc.port+(r.osc.running?'':' (not running)')):'off'));
   loadQlab();
 }
 async function exportToQlab(){
   const host=document.getElementById('qlHost').value.trim();
-  if(!host){ alert('Enter the IP of the Mac running QLab.'); return; }
+  if(!host){ toast('Enter the IP of the Mac running QLab.','err'); return; }
   const body={host, port:parseInt(document.getElementById('qlPort').value)||53000,
     patch:parseInt(document.getElementById('qlPatch').value), passcode:document.getElementById('qlPass').value.trim()};
   const note=document.getElementById('qlExportNote'); note.textContent='creating cues in QLab…';
@@ -890,7 +1027,7 @@ function renderGrid(){
     const key=`${r},${c}`, st=nodeStatus[key], cls=st===undefined?'':(st?'online':'offline');
     const n=(g.nodes||{})[key], who=n?(n.node||n.host||''):'';
     h+=`<div class="panel ${portrait?'portrait':''} ${cls} ${key===selectedCell?'selpanel':''}" title="${key}" style="cursor:pointer" onclick="selectCell('${key}')">
-      <div>${key}</div>${who?`<div style="font-size:10px;color:#64748b">${who}</div>`:'<div style="font-size:10px;color:#cbd5e1">tap to assign</div>'}<span class="dot ${cls}"></span></div>`;
+      <div>${key}</div>${who?`<div style="font-size:11px;color:var(--text-dim)">${esc(who)}</div>`:'<div style="font-size:11px;color:var(--text-faint)">tap to assign</div>'}<span class="dot ${cls}"></span></div>`;
   }
   el.innerHTML=h;
 }
@@ -908,7 +1045,7 @@ function renderCellEditor(){
     <label>Assign TV</label>
     <select id="ce-node" onchange="onCeNode()">${nodeSelOptions(sel)}</select>
     <div id="ce-manual" style="display:${sel==='manual'?'flex':'none'};gap:8px;margin-top:8px">
-      <input type="text" id="ce-host" value="${n.host||''}" placeholder="host / IP">
+      <input type="text" id="ce-host" value="${esc(n.host||'')}" placeholder="host / IP">
       <input type="text" id="ce-port" value="${n.port||''}" placeholder="port">
     </div>
     <div class="btn-row" style="margin-top:12px">
@@ -943,16 +1080,16 @@ async function setBezel(){ const g=wallG();
   await fetch('/api/layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({layout:g.layout,bezel_comp:document.getElementById('bezel').value==='1'})}); await loadState(); log('bezel handling changed'); }
 function nodeSelOptions(sel){
   let o=`<option value="">— unassigned —</option>`;
-  o+=DISC.map(d=>`<option value="node:${d.id}" ${sel==='node:'+d.id?'selected':''}>${d.id} — ${d.ip}${d.online?'':' (offline)'}</option>`).join('');
+  o+=DISC.map(d=>`<option value="node:${esc(d.id)}" ${sel==='node:'+d.id?'selected':''}>${esc(d.id)} — ${esc(d.ip)}${d.online?'':' (offline)'}</option>`).join('');
   // keep a manually-assigned id selectable even if it isn't currently registered
-  if(sel.startsWith('node:') && !DISC.some(d=>'node:'+d.id===sel)) o+=`<option value="${sel}" selected>${sel.slice(5)} (not registered)</option>`;
+  if(sel.startsWith('node:') && !DISC.some(d=>'node:'+d.id===sel)) o+=`<option value="${esc(sel)}" selected>${esc(sel.slice(5))} (not registered)</option>`;
   o+=`<option value="manual" ${sel==='manual'?'selected':''}>manual host/port…</option>`;
   return o;
 }
 function renderDiscovered(){
   const el=document.getElementById('discList'); if(!el) return;
   el.innerHTML = DISC.length
-    ? DISC.map(d=>`<span class="pill" title="${d.ip}:${d.port}">${d.online?'🟢':'⚪'} ${d.id} — ${d.ip}</span>`).join('')
+    ? DISC.map(d=>`<span class="pill" title="${esc(d.ip)}:${esc(d.port)}">${d.online?'🟢':'⚪'} ${esc(d.id)} — ${esc(d.ip)}</span>`).join('')
     : 'No TVs registered yet. Install nodes with the hub address (HUB=…) and they appear here.';
 }
 async function loadDiscovered(){
@@ -963,15 +1100,15 @@ async function loadDiscovered(){
 }
 async function identify(key){ await fetch('/api/node/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})}); log('identify '+key); }
 async function rebootNode(key){
-  if(!confirm('Reboot TV '+key+' now?')) return;
+  if(!await uiConfirm('Reboot TV '+key+' now?',{okText:'Reboot'})) return;
   const r=await (await fetch('/api/node/reboot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})})).json();
   log(r.error?('reboot '+key+' failed: '+r.error):('rebooting '+key+'…'));
 }
 async function updateNode(key){
-  if(!confirm('Run OS package updates on TV '+key+'?\nUpdate ONE TV, verify the wall, then do the rest. Keep a known-good SD image as your rollback.')) return;
-  const password=prompt('Enter the node’s sudo password to authorize the update for '+key+':'); if(!password) return;
+  if(!await uiConfirm('Run OS package updates on TV '+key+'?\nUpdate ONE TV, verify the wall, then do the rest. Keep a known-good SD image as your rollback.',{okText:'Update'})) return;
+  const password=await uiPrompt('Enter the node’s sudo password to authorize the update for '+key+':',{title:'Authorize update',password:true}); if(!password) return;
   const r=await (await fetch('/api/node/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,password})})).json();
-  if(r.error){ log('update '+key+' rejected: '+r.error); alert('Update not started: '+r.error); return; }
+  if(r.error){ log('update '+key+' rejected: '+r.error); toast('Update not started: '+r.error,'err'); return; }
   log('update '+key+' started… (watch Activity)');
   const poll=async()=>{
     const s=await (await fetch('/api/node/update/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})})).json();
@@ -981,18 +1118,18 @@ async function updateNode(key){
   setTimeout(poll,4000);
 }
 async function updateNodeCode(key){
-  if(!confirm('Push the hub’s current Video Hive code to TV '+key+' and restart it?')) return;
-  const password=prompt('Enter the node’s sudo password to authorize the code update for '+key+':'); if(!password) return;
+  if(!await uiConfirm('Push the hub’s current Video Hive code to TV '+key+' and restart it?',{okText:'Update code'})) return;
+  const password=await uiPrompt('Enter the node’s sudo password to authorize the code update for '+key+':',{title:'Authorize code update',password:true}); if(!password) return;
   const r=await (await fetch('/api/node/update_code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,password})})).json();
-  if(r.error){ log('code update '+key+' failed: '+r.error); alert('Code update failed: '+r.error); return; }
+  if(r.error){ log('code update '+key+' failed: '+r.error); toast('Code update failed: '+r.error,'err'); return; }
   log('code update '+key+': pushed, node restarting…');
 }
 async function rebootAll(){
-  if(!confirm('Reboot ALL mapped TVs now?')) return;
+  if(!await uiConfirm('Reboot ALL mapped TVs now?',{okText:'Reboot all'})) return;
   await fetch('/api/nodes/reboot_all',{method:'POST'}); log('reboot sent to all mapped TVs');
 }
 async function purgeNodes(){
-  if(!confirm('Remove staged cues from the TVs that no longer belong to any workspace?')) return;
+  if(!await uiConfirm('Remove staged cues from the TVs that no longer belong to any workspace?',{okText:'Purge'})) return;
   const r=await (await fetch('/api/nodes/purge',{method:'POST'})).json();
   const n=Object.entries(r.nodes||{}).map(([k,v])=>k+': '+(v.error?('error '+v.error):((v.removed||[]).length+' removed'))).join('  |  ');
   log('purge — '+(n||'no TVs reachable'));
@@ -1031,10 +1168,10 @@ async function doLogin(){
 }
 async function doLogout(){ await fetch('/api/logout',{method:'POST'}); location.reload(); }
 async function changePw(){
-  const oldp=prompt('Current password:'); if(oldp===null) return;
-  const newp=prompt('New password (at least 4 characters):'); if(!newp) return;
+  const oldp=await uiPrompt('Current password:',{title:'Change password',password:true}); if(oldp===null) return;
+  const newp=await uiPrompt('New password (at least 4 characters):',{title:'Change password',password:true,okText:'Change'}); if(!newp) return;
   const r=await (await fetch('/api/account/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old:oldp,new:newp})})).json();
-  alert(r.ok?'Password changed.':('Could not change password: '+(r.error||'error')));
+  toast(r.ok?'Password changed.':('Could not change password: '+(r.error||'error')), r.ok?'ok':'err');
 }
 
 setupCueDnD();
