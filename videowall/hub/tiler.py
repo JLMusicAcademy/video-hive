@@ -50,10 +50,15 @@ def crop_filter(tile, src_w, src_h, canvas_w, canvas_h, fit):
 
 def tile_video(src_path, out_dir, tiles, canvas_w, canvas_h, fit="cover",
                crf=20, preset="veryfast", progress=None):
-    """Produce one tile file per panel in `out_dir`.
+    """Produce one tile file per panel in `out_dir`, in a single ffmpeg pass.
 
-    Returns {(row, col): Path}. `progress(done, total, key)` is called after
-    each tile if provided. 'contain' is treated as 'cover' for video.
+    The source is decoded once and split into one crop/scale chain per tile, so
+    an N-display wall does NOT re-decode the source N times. Encoding all tiles
+    in one process also lets ffmpeg manage core usage instead of oversubscribing
+    the CPU with N competing encoders. Returns {(row, col): Path}.
+    `progress(done, total, key)` is called once the pass completes (the single
+    pass produces all tiles together, so there is no per-tile granularity).
+    'contain' is treated as 'cover' for video.
     """
     if fit == "contain":
         fit = "cover"
@@ -63,26 +68,31 @@ def tile_video(src_path, out_dir, tiles, canvas_w, canvas_h, fit="cover",
     out_dir.mkdir(parents=True, exist_ok=True)
 
     src_w, src_h = probe_dimensions(src_path)
+    n = len(tiles)
     results = {}
-    total = len(tiles)
-    for i, t in enumerate(tiles, 1):
+
+    # Build one filter graph: decode once -> split N ways -> crop/scale each.
+    chains = ["[0:v]split=%d%s" % (n, "".join(f"[s{i}]" for i in range(n)))]
+    outputs = []
+    for i, t in enumerate(tiles):
         out_file = out_dir / f"r{t.row}c{t.col}.mp4"
-        vf = crop_filter(t, src_w, src_h, canvas_w, canvas_h, fit)
-        proc = subprocess.run([
-            "ffmpeg", "-y", "-i", str(src_path),
-            "-vf", vf,
-            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-            "-pix_fmt", "yuv420p",
-            "-an",                       # tiles are silent; route audio separately
-            str(out_file),
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        if proc.returncode != 0:
-            # Surface ffmpeg's own error instead of swallowing it -- a swallowed
-            # failure looks like the cue silently "never showing up".
-            tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-            detail = " | ".join(tail[-3:]) if tail else f"exit {proc.returncode}"
-            raise RuntimeError(f"ffmpeg failed tiling r{t.row}c{t.col}: {detail}")
         results[(t.row, t.col)] = out_file
-        if progress:
-            progress(i, total, t.key)
+        chains.append(f"[s{i}]{crop_filter(t, src_w, src_h, canvas_w, canvas_h, fit)}[o{i}]")
+        outputs += ["-map", f"[o{i}]",
+                    "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+                    "-pix_fmt", "yuv420p",
+                    "-an",                  # tiles are silent; route audio separately
+                    str(out_file)]
+    cmd = ["ffmpeg", "-y", "-i", str(src_path),
+           "-filter_complex", ";".join(chains)] + outputs
+
+    proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if proc.returncode != 0:
+        # Surface ffmpeg's own error instead of swallowing it -- a swallowed
+        # failure looks like the cue silently "never showing up".
+        tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        detail = " | ".join(tail[-3:]) if tail else f"exit {proc.returncode}"
+        raise RuntimeError(f"ffmpeg failed tiling {n} tile(s): {detail}")
+    if progress:
+        progress(n, n, None)
     return results
