@@ -748,7 +748,8 @@ def api_state():
     eff = grid_view(effective_config())
     return jsonify({
         **eff,                                   # the one wall grid
-        "layouts": list(geometry.LAYOUTS.keys()),
+        "layouts": [{"name": k, "label": v["label"], "orientation": v["orientation"]}
+                    for k, v in geometry.LAYOUTS.items()],
         "active_workspace": {"id": ws["id"], "name": ws["name"],
                              "default_image": default_image_id()},
     })

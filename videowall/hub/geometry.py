@@ -60,16 +60,22 @@ class Tile:
 
 # Layout presets requested for the wall. Panel physical dimensions come from
 # the wall config; orientation only selects which panel block to use.
+# Each entry carries its grid shape, orientation, and a clean display label.
+# The key stays unique (orientation is part of it) so existing workspaces/cues
+# keep resolving; the UI shows `label` grouped under an orientation heading, so
+# the word landscape/portrait never appears in the chip itself.
+#   Landscape: 1-4 displays (1x1, 1x2, 1x3, 2x2)
+#   Portrait : 1-5 vertical displays (1x1 .. 1x5)
 LAYOUTS = {
-    "1x1 landscape": {"rows": 1, "cols": 1, "orientation": "landscape"},
-    "1x2 landscape": {"rows": 1, "cols": 2, "orientation": "landscape"},
-    "2x2": {"rows": 2, "cols": 2, "orientation": "landscape"},
-    "4x4": {"rows": 4, "cols": 4, "orientation": "landscape"},
-    "1x1 portrait": {"rows": 1, "cols": 1, "orientation": "portrait"},
-    "1x2": {"rows": 1, "cols": 2, "orientation": "portrait"},
-    "1x3": {"rows": 1, "cols": 3, "orientation": "portrait"},
-    "1x4": {"rows": 1, "cols": 4, "orientation": "portrait"},
-    "1x5": {"rows": 1, "cols": 5, "orientation": "portrait"},
+    "1x1 landscape": {"rows": 1, "cols": 1, "orientation": "landscape", "label": "1×1"},
+    "1x2 landscape": {"rows": 1, "cols": 2, "orientation": "landscape", "label": "1×2"},
+    "1x3 landscape": {"rows": 1, "cols": 3, "orientation": "landscape", "label": "1×3"},
+    "2x2":           {"rows": 2, "cols": 2, "orientation": "landscape", "label": "2×2"},
+    "1x1 portrait":  {"rows": 1, "cols": 1, "orientation": "portrait",  "label": "1×1"},
+    "1x2":           {"rows": 1, "cols": 2, "orientation": "portrait",  "label": "1×2"},
+    "1x3":           {"rows": 1, "cols": 3, "orientation": "portrait",  "label": "1×3"},
+    "1x4":           {"rows": 1, "cols": 4, "orientation": "portrait",  "label": "1×4"},
+    "1x5":           {"rows": 1, "cols": 5, "orientation": "portrait",  "label": "1×5"},
 }
 
 

@@ -53,6 +53,7 @@ CFG = {
     "socket": "/tmp/mpv-wall-socket",
     "headless": False,
     "gpu_context": "x11egl",   # mpv GPU backend; "drm" renders with no X server
+    "screen": None,            # which display to fullscreen on (single-machine, multi-display)
     "hub": None,               # if set, announce ourselves to the hub here
 }
 
@@ -147,21 +148,37 @@ def start_mpv():
             os.system(f"ffmpeg -f lavfi -i color=black:s=64x64:r=1 "
                       f"-frames:v 1 {black} 2>/dev/null")
 
-    print(f"[node {CFG['id']}] starting mpv (gpu-context={CFG['gpu_context']})")
+    cmd = [
+        "mpv",
+        "--fullscreen", "--keep-open=yes",
+        "--image-display-duration=inf", "--idle=yes", "--force-window=yes",
+        "--no-osc", "--no-osd-bar", "--osd-level=0",
+        "--cursor-autohide=always", "--msg-level=all=error",
+        "--hwdec=auto", "--vo=gpu",
+        f"--video-rotate={CFG['rotation']}",
+        f"--input-ipc-server={CFG['socket']}",
+    ]
+    # Only pin a GPU backend when one is set. On macOS we leave it unset so mpv
+    # picks its native (Cocoa/Metal) context; forcing x11egl/drm there fails.
+    if CFG["gpu_context"]:
+        cmd.append(f"--gpu-context={CFG['gpu_context']}")
+    # Pin this window to a specific physical display (single machine driving
+    # several displays). --screen positions the window; --fs-screen the fullscreen.
+    if CFG["screen"] is not None:
+        cmd += [f"--screen={CFG['screen']}", f"--fs-screen={CFG['screen']}"]
+    # macOS native fullscreen puts each window in its own Space, which breaks a
+    # multi-display wall; use mpv's plain fullscreen so the window simply covers
+    # its target display.
+    if sys.platform == "darwin":
+        cmd.append("--native-fs=no")
+    cmd.append(str(black) if black.exists() else "--idle=yes")
+
+    print(f"[node {CFG['id']}] starting mpv "
+          f"(gpu-context={CFG['gpu_context'] or 'native'}, screen={CFG['screen']})")
     try:
         # stderr is left attached (-> the journal under systemd) so display/GPU
         # failures are visible instead of silently swallowed.
-        STATE["mpv"] = subprocess.Popen([
-            "mpv",
-            "--fullscreen", "--keep-open=yes",
-            "--image-display-duration=inf", "--idle=yes", "--force-window=yes",
-            "--no-osc", "--no-osd-bar", "--osd-level=0",
-            "--cursor-autohide=always", "--msg-level=all=error",
-            "--hwdec=auto", "--vo=gpu", f"--gpu-context={CFG['gpu_context']}",
-            f"--video-rotate={CFG['rotation']}",
-            f"--input-ipc-server={CFG['socket']}",
-            str(black) if black.exists() else "--idle=yes",
-        ], stdout=subprocess.DEVNULL)
+        STATE["mpv"] = subprocess.Popen(cmd, stdout=subprocess.DEVNULL)
     except FileNotFoundError:
         print(f"[node {CFG['id']}] mpv not found -> headless mode")
         CFG["headless"] = True
@@ -437,9 +454,13 @@ def main():
     ap.add_argument("--rotation", type=int, default=0, choices=[0, 90, 180, 270])
     ap.add_argument("--media-dir", default=None)
     ap.add_argument("--socket", default=None)
-    ap.add_argument("--gpu-context", default="x11egl",
+    ap.add_argument("--gpu-context", default=None,
                     help="mpv GPU backend: 'drm' renders with no X server "
-                         "(kiosk on a Pi); 'x11egl' needs an X display (default)")
+                         "(kiosk on a Pi); 'x11egl' needs an X display. "
+                         "Default: x11egl on Linux, native (unset) on macOS")
+    ap.add_argument("--screen", type=int, default=None,
+                    help="physical display index to fullscreen on (for one "
+                         "machine driving several displays; one node per screen)")
     ap.add_argument("--hub", default=None,
                     help="hub base URL (e.g. http://hub.local:5000) to "
                          "auto-register with, so its IP need not be typed")
@@ -451,7 +472,12 @@ def main():
     CFG["port"] = args.port
     CFG["rotation"] = args.rotation
     CFG["headless"] = args.headless
-    CFG["gpu_context"] = args.gpu_context
+    # Resolve the GPU backend per platform when not explicitly set.
+    if args.gpu_context is not None:
+        CFG["gpu_context"] = args.gpu_context
+    else:
+        CFG["gpu_context"] = "" if sys.platform == "darwin" else "x11egl"
+    CFG["screen"] = args.screen
     CFG["hub"] = args.hub
     CFG["media_dir"] = Path(args.media_dir or f"media_{args.id}")
     CFG["socket"] = args.socket or f"/tmp/mpv-wall-{args.id}.sock"

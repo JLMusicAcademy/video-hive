@@ -64,8 +64,8 @@ the editor is hidden and the cue list is locked for walking the show live.
 
 | Orientation | Layouts | Panel (wall-space) |
 |-------------|---------|--------------------|
-| Landscape (16:9) | `1x1 landscape`, `2x2`, `4x4` | 1920×1080, rotation 0 |
-| Portrait (9:16)  | `1x1 portrait`, `1x2`, `1x3`, `1x4`, `1x5` | 1080×1920, rotation 90 |
+| Landscape (16:9) | `1x1 landscape`, `1x2 landscape`, `1x3 landscape`, `2x2` (1–4 displays) | 1920×1080, rotation 0 |
+| Portrait (9:16)  | `1x1 portrait`, `1x2`, `1x3`, `1x4`, `1x5` (1–5 displays) | 1080×1920, rotation 90 |
 
 `1xN` is a horizontal **row** of N portrait panels (wide panorama); the two
 `1x1` options are a single landscape or single portrait display. Add layouts in

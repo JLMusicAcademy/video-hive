@@ -135,7 +135,9 @@
   .dot.online{ background:var(--go); } .dot.offline{ background:var(--danger); }
   .target{ background:rgba(245,158,11,0.08); border:1px solid var(--border-2); border-radius:var(--r); padding:11px 13px; margin-top:10px; font-size:var(--t-sm); color:var(--text-dim); }
   .target b{ color:var(--accent); }
-  .layouts{ display:flex; gap:8px; flex-wrap:wrap; }
+  .layouts{ display:flex; flex-direction:column; gap:14px; }
+  .laygroup-h{ font-size:12px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:7px; }
+  .layrow{ display:flex; gap:8px; flex-wrap:wrap; }
   .lay{ padding:8px 14px; background:var(--surface-2); border:1px solid var(--border-2); border-radius:var(--r); cursor:pointer; font-size:var(--t-sm); font-weight:600; color:var(--text); }
   .lay:hover{ background:var(--surface-3); }
   .lay.active{ background:var(--primary); border-color:var(--primary); color:var(--primary-ink); }
@@ -515,12 +517,16 @@ function wallG(){
   return {layout:S.layout,fit:S.fit,bezel_comp:S.bezel_comp,rows:S.rows,cols:S.cols,
           orientation:S.orientation,nodes:S.nodes,authoring:S.authoring,panel:S.panel};
 }
+function layoutLabel(name){
+  const l=(S&&S.layouts||[]).find(x=>x.name===name);
+  return l ? `${l.label} ${l.orientation}` : name;
+}
 async function loadState(){
   S=await (await fetch('/api/state')).json();
-  document.getElementById('hLayout').textContent=S.active_workspace.name+' · '+S.layout;
+  document.getElementById('hLayout').textContent=S.active_workspace.name+' · '+layoutLabel(S.layout);
   let opts=''; for(let r=0;r<S.rows;r++) for(let c=0;c<S.cols;c++) opts+=`<option value="${r},${c}">TV ${r},${c}</option>`;
   document.getElementById('soloTarget').innerHTML=opts;
-  document.getElementById('wsGridText').innerHTML=`Wall grid: <b>${S.layout}</b>`;
+  document.getElementById('wsGridText').innerHTML=`Wall grid: <b>${layoutLabel(S.layout)}</b>`;
   renderWall();
 }
 function renderWall(){
@@ -528,8 +534,14 @@ function renderWall(){
   const g=wallG();
   document.getElementById('fit').value=g.fit;
   document.getElementById('bezel').value=g.bezel_comp?'1':'0';
-  document.getElementById('layouts').innerHTML=S.layouts.map(l=>
-    `<div class="lay ${l===g.layout?'active':''}" onclick="setLayout('${l}')">${l}</div>`).join('');
+  const groupHtml=(title,ori)=>{
+    const list=(S.layouts||[]).filter(l=>l.orientation===ori);
+    if(!list.length) return '';
+    return `<div class="laygroup"><div class="laygroup-h">${title}</div><div class="layrow">`+
+      list.map(l=>`<div class="lay ${l.name===g.layout?'active':''}" onclick="setLayout('${l.name}')">${l.label}</div>`).join('')+
+      `</div></div>`;
+  };
+  document.getElementById('layouts').innerHTML=groupHtml('Landscape','landscape')+groupHtml('Portrait','portrait');
   const a=g.authoring, comp=g.bezel_comp, main=comp?a.physical_canvas:a.active_mosaic, alt=comp?a.active_mosaic:a.physical_canvas;
   document.getElementById('authoring').innerHTML=
     `📐 Author your master at <b>${main.w}×${main.h}px</b> (${main.aspect}, ${comp?'bezel-compensated':'no bezel comp'})`+
