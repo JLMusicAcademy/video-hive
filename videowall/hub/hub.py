@@ -787,7 +787,7 @@ def api_nodes():
 def api_nodes_status():
     def _ping(key, node):
         try:
-            r = requests.get(node_url(node, "/status"), timeout=2)
+            r = requests.get(node_url(node, "/status"), timeout=4)
             return key, (r.ok, r.json() if r.ok else r.text)
         except Exception as e:
             return key, (False, str(e))
@@ -798,6 +798,12 @@ def api_nodes_status():
 
 
 def record_node(nid, ip, port, rotation=0, via="register"):
+    # If this physical node previously announced under a different id (e.g. it
+    # was renamed), drop the stale entry at the same address so it doesn't linger
+    # as a ghost in the discovered list.
+    for k in [k for k, v in STATE["registry"].items()
+              if k != nid and v["ip"] == ip and int(v["port"]) == int(port)]:
+        del STATE["registry"][k]
     STATE["registry"][nid] = {"ip": ip, "port": int(port),
                               "rotation": int(rotation), "last_seen": time.time(),
                               "via": via}
@@ -864,6 +870,26 @@ def start_mdns():
         print(f"[mdns] browsing for nodes ({MDNS_NODE_TYPE})")
     except Exception as e:
         print(f"[mdns] could not start: {e}")
+
+
+def start_health_poller():
+    """Keep each known node's 'last_seen' fresh by actually reaching it, so the
+    discovered list reflects real reachability instead of mDNS announce timing.
+    mDNS re-announcements are sporadic (often > NODE_ONLINE_SEC apart), which made
+    healthy nodes flap to 'offline' between adverts. Polling /status every 20s
+    keeps reachable nodes online and lets genuinely-dead ones age out."""
+    def loop():
+        while True:
+            for nid, v in list(STATE["registry"].items()):
+                try:
+                    r = requests.get(f"http://{v['ip']}:{v['port']}/status", timeout=4)
+                    if r.ok:
+                        v["last_seen"] = time.time()
+                except Exception:
+                    pass
+            time.sleep(20)
+    threading.Thread(target=loop, daemon=True).start()
+    print("[health] node reachability poller started (every 20s)")
 
 
 @app.route("/api/nodes/discovered")
@@ -1648,6 +1674,7 @@ def main():
     print("=" * 60)
     start_osc()
     start_mdns()
+    start_health_poller()
     app.run(host=args.host, port=args.port)
 
 
